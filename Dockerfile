@@ -1,10 +1,10 @@
-FROM node:latest
+FROM node:16-alpine
 
 WORKDIR /src
 
 COPY . .
 
-RUN ls 
+RUN ls
 RUN cd unique-migrations-seeds
 RUN yarn install
 

@@ -1,9 +1,13 @@
-
-export default {
-  dbHost : process.env.DB_HOST || 'localhost',
-  dbPort : +(process.env.DB_PORT || 5432),
-  dbName : process.env.DB_NAME || 'marketplace_db',
-  dbUser : process.env.DB_USER || 'marketplace',
-  dbPassword : process.env.DB_PASSWORD || '12345',
-  listenPort : process.env.API_PORT || '5013',
-}
+export const getConfig = (mode?: string) => {
+  let config = require('./config.global').default;
+  if(typeof mode === 'undefined') mode = process.env.RUN_MODE || 'dev';
+  let localConfig;
+  try {
+    localConfig = require(`./config.${mode}`).default;
+  }
+  catch (e) {
+    localConfig = {};
+  }
+  if(mode === 'test') localConfig.inTesting = true;
+  return {...config, ...localConfig};
+};

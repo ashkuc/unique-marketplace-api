@@ -39,6 +39,7 @@ export class TradesService {
 
     tradesQuery = this.filterByCollectionIds(tradesQuery, collectionIds);
     tradesQuery = this.filterBySeller(tradesQuery, seller);
+    tradesQuery = tradesQuery.orderBy('trade.TradeDate', 'DESC');
 
     const paginationResult = await paginate(tradesQuery, paginationRequest);
 

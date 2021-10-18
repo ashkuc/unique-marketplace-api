@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MarketplacePgRepository } from "../unique-migrations-seeds/src";
-import config from './config';
+import { getConfig } from './config';
 import { OffersController } from './offers/offers.controller';
 import { OffersService } from './offers/offers.service';
 import { OnHoldController } from './on-hold/on-hold.controller';
@@ -9,10 +9,12 @@ import { OnHoldService } from './on-hold/on-hold.service';
 import { TradesController } from './trades/trades.controller';
 import { TradesService } from './trades/trades.service';
 
+
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
       connectionFactory: () => {
+        const config = getConfig();
         const repository = new MarketplacePgRepository({
           host: config.dbHost,
           port: config.dbPort,

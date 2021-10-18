@@ -5,7 +5,9 @@ import { AppModule } from './app.module';
 import { ParsePaginationRequestPipe } from './pagination/parse-pagination-request.pipe';
 import { ParseSortingRequestPipe } from './sorting/sorting-request.pipe';
 import { equalsIgnoreCase } from './string/equals-ignore-case';
-import config from './config';
+import { getConfig } from './config';
+
+const config = getConfig();
 
 function useSwagger(app: INestApplication) {
   const config = new DocumentBuilder()
@@ -35,12 +37,11 @@ function ignoreQueryCase(app: INestApplication) {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors();
-
   useSwagger(app);
   ignoreQueryCase(app);
   useGlobalPipes(app);
 
   await app.listen(config.listenPort);
 }
+
 bootstrap();
