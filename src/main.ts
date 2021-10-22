@@ -37,6 +37,8 @@ function ignoreQueryCase(app: INestApplication) {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  if(config.disableSecurity) app.enableCors();
+
   useSwagger(app);
   ignoreQueryCase(app);
   useGlobalPipes(app);

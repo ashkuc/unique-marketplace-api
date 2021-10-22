@@ -5,4 +5,5 @@ export default {
   dbUser : process.env.DB_USER || 'marketplace',
   dbPassword : process.env.DB_PASSWORD || '12345',
   listenPort : process.env.API_PORT || '5013',
+  disableSecurity: process.env.DISABLE_SECURITY === 'true'
 }
