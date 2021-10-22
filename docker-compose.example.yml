@@ -1,0 +1,34 @@
+version: "3.5"
+
+services:
+  market-postgres:
+    image: postgres:13.4-alpine
+    container_name: market-postgres
+    environment:
+      POSTGRES_DB: 'marketplace_db'
+      POSTGRES_USER: 'marketplace'
+      POSTGRES_PASSWORD: '12345'
+      POSTGRES_PORT: '5432'
+      POSTGRES_INITDB_ARGS: "--auth-local=trust"
+    ports:
+      - 5432:5432
+    volumes:
+      - ../postgresql/market:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+
+  market-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: market-web
+    container_name: market-web
+    environment:
+      DB_HOST: 'market-postgres'
+      DB_PORT: '5432'
+      DB_NAME: 'marketplace_db'
+      DB_USER: 'marketplace'
+      DB_PASSWORD: '12345'
+      API_PORT: '5000'
+      DISABLE_SECUTIRY: 'false'
+    ports:
+      - 5000:5000
