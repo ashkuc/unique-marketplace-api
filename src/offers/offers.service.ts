@@ -71,7 +71,7 @@ export class OffersService {
     let matchedText = this.connection.createQueryBuilder(TokenTextSearch, 'tokenTextSearch')
       .andWhere(`tokenTextSearch.Text ilike CONCAT('%', cast(:searchText as text), '%')`, { searchText: text });
     if(!nullOrWhitespace(locale)) {
-      matchedText = matchedText.andWhere('tokenTextSearch.Locale is null OR tokenTextSearch.Locale = :locale', { locale: locale});
+      matchedText = matchedText.andWhere('(tokenTextSearch.Locale is null OR tokenTextSearch.Locale = :locale)', { locale: locale});
     }
 
     const groupedMatches = matchedText.select('tokenTextSearch.CollectionId, tokenTextSearch.TokenId').groupBy('tokenTextSearch.CollectionId, tokenTextSearch.TokenId');
