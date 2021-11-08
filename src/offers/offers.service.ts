@@ -1,22 +1,25 @@
-import { Injectable } from '@nestjs/common';
-import { paginate } from 'src/pagination/paginate';
-import { PaginationRequest } from 'src/pagination/pagination-request';
-import { PaginationResult } from 'src/pagination/pagination-result';
-import { SortingOrder } from 'src/sorting/sorting-order';
-import { SortingRequest } from 'src/sorting/sorting-request';
-import { equalsIgnoreCase } from 'src/string/equals-ignore-case';
+import { Inject, Injectable } from '@nestjs/common';
 import { Connection, SelectQueryBuilder } from 'typeorm';
+import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
+
+import { paginate } from '../utils/pagination/paginate';
+import { PaginationRequest } from '../utils/pagination/pagination-request';
+import { PaginationResult } from '../utils/pagination/pagination-result';
+import { SortingOrder } from '../utils/sorting/sorting-order';
+import { SortingRequest } from '../utils/sorting/sorting-request';
+import { equalsIgnoreCase } from '../utils/string/equals-ignore-case';
+import { nullOrWhitespace } from '../utils/string/null-or-white-space';
+
 import { OfferDto } from './offer-dto';
 import { OffersFilter } from './offers-filter';
-import { Offer, priceTransformer, TokenTextSearch } from '../../unique-migrations-seeds/src';
-import { nullOrWhitespace } from 'src/string/null-or-white-space';
-import {decodeAddress, encodeAddress} from "@polkadot/util-crypto";
+import { Offer, TokenTextSearch } from '../entity';
+import { priceTransformer } from '../utils/price-transformer';
 
 @Injectable()
 export class OffersService {
   private sortingColumns = ['Price', 'TokenId', 'CreationDate'];
 
-  constructor(private connection: Connection) {
+  constructor(@Inject('DATABASE_CONNECTION') private connection: Connection) {
   }
 
   applySort(query: SelectQueryBuilder<Offer>, sort: SortingRequest): SelectQueryBuilder<Offer> {

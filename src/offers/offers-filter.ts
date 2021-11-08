@@ -1,6 +1,7 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { Dto } from "src/dto";
-import { ClassToDto } from "src/type-generators/class-to-dto";
+import { ApiProperty } from '@nestjs/swagger';
+
+import { Dto } from '../utils/dto';
+import { ClassToDto } from '../utils/type-generators/class-to-dto';
 
 export class OffersFilter
 {
