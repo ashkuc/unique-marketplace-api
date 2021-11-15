@@ -4,7 +4,7 @@
   "description": "Backend project for unique marketplace",
   "author": "Unique Network",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache 2.0",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
