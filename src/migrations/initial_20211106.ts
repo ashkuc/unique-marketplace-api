@@ -55,7 +55,7 @@ export class Initial_20211106000000 implements MigrationInterface {
       indices: [
         {
           name: "IX_Offer_OfferStatus_CollectionId_TokenId",
-          columnNames: ["CollectionId", "OfferStatus", "TokenId"]
+          columnNames: ["OfferStatus", "CollectionId", "TokenId"]
         },
         {
           name: "IX_Offer_CreationDate",
@@ -102,7 +102,8 @@ export class Initial_20211106000000 implements MigrationInterface {
         },
         {
           name: "SellerPublicKeyBytes",
-          type: "bytea"
+          type: "bytea",
+          default: "'\\x'::bytea"
         },
         {
           name: "QuoteId",
@@ -124,7 +125,8 @@ export class Initial_20211106000000 implements MigrationInterface {
       indices: [
         {
           name: "IX_NftIncomingTransaction_Status_LockTime",
-          columnNames: ["LockTime", "Status"]
+          columnNames: ["Status", "LockTime"],
+          where: '("Status" = 0)'
         },
         {
           name: "IX_NftIncomingTransaction_OfferId",
@@ -206,7 +208,8 @@ export class Initial_20211106000000 implements MigrationInterface {
       indices: [
         {
           name: "IX_NftOutgoingTransaction_Status_LockTime",
-          columnNames: ["LockTime", "Status"]
+          columnNames: ["Status", "LockTime"],
+          where: '("Status" = 0)'
         }
       ],
       columns: [
@@ -257,7 +260,7 @@ export class Initial_20211106000000 implements MigrationInterface {
       indices: [
         {
           name: "IX_TokenTextSearch_CollectionId_TokenId_Locale",
-          columnNames: ["CollectionId", "Locale", "TokenId"]
+          columnNames: ["CollectionId", "TokenId", "Locale"]
         }
       ],
       columns: [
@@ -337,7 +340,8 @@ export class Initial_20211106000000 implements MigrationInterface {
         },
         {
           name: "IX_QuoteIncomingTransaction_Status_LockTime",
-          columnNames: ["LockTime", "Status"]
+          columnNames: ["Status", "LockTime"],
+          where: '("Status" = 0)'
         }
       ],
       columns: [
@@ -393,7 +397,8 @@ export class Initial_20211106000000 implements MigrationInterface {
       indices: [
         {
           name: "IX_QuoteOutgoingTransaction_Status",
-          columnNames: ["Status"]
+          columnNames: ["Status"],
+          where: '("Status" = 0)'
         }
       ],
       columns: [
