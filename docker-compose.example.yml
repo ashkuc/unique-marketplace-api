@@ -23,11 +23,7 @@ services:
     image: market-web
     container_name: market-web
     environment:
-      DB_HOST: 'market-postgres'
-      DB_PORT: '5432'
-      DB_NAME: 'marketplace_db'
-      DB_USER: 'marketplace'
-      DB_PASSWORD: '12345'
+      POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
       API_PORT: '5000'
       DISABLE_SECURITY: 'false'
     ports:

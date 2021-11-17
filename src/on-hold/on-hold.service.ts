@@ -1,17 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import {Inject, Injectable} from '@nestjs/common';
 import { Connection, SelectQueryBuilder } from 'typeorm';
-import { NftIncomingTransaction, Offer, Trade } from '../../unique-migrations-seeds/src';
-import { nullOrWhitespace } from 'src/string/null-or-white-space';
-import {decodeAddress, encodeAddress} from "@polkadot/util-crypto";
-import { PaginationRequest } from 'src/pagination/pagination-request';
-import { PaginationResult } from 'src/pagination/pagination-result';
-import { paginate } from 'src/pagination/paginate';
+import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
+
+import { NftIncomingTransaction } from '../entity';
+import { nullOrWhitespace } from '../utils/string/null-or-white-space';
+import { PaginationRequest } from '../utils/pagination/pagination-request';
+import { PaginationResult } from '../utils/pagination/pagination-result';
+import { paginate } from '../utils/pagination/paginate';
 import { OnHoldDto } from './on-hold-dto';
 
 @Injectable()
 export class OnHoldService {
 
-  constructor(private connection: Connection) {
+  constructor(@Inject('DATABASE_CONNECTION') private connection: Connection) {
   }
 
   filterByCollectionIds(query: SelectQueryBuilder<NftIncomingTransaction>, collectionIds: number[] | undefined): SelectQueryBuilder<NftIncomingTransaction> {

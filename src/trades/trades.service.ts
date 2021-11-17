@@ -1,17 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Connection, SelectQueryBuilder } from 'typeorm';
-import { Trade } from '../../unique-migrations-seeds/src';
-import { nullOrWhitespace } from 'src/string/null-or-white-space';
-import {decodeAddress, encodeAddress} from "@polkadot/util-crypto";
-import { PaginationRequest } from 'src/pagination/pagination-request';
-import { PaginationResult } from 'src/pagination/pagination-result';
+import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
+
+import { Trade } from '../entity';
+
+import { nullOrWhitespace } from '../utils/string/null-or-white-space';
+import { PaginationRequest } from '../utils/pagination/pagination-request';
+import { PaginationResult } from '../utils/pagination/pagination-result';
+import { paginate } from '../utils/pagination/paginate';
 import { TradeDto } from './trade-dto';
-import { paginate } from 'src/pagination/paginate';
 
 @Injectable()
 export class TradesService {
 
-  constructor(private connection: Connection) {
+  constructor(@Inject('DATABASE_CONNECTION') private connection: Connection) {
   }
 
   filterByCollectionIds(query: SelectQueryBuilder<Trade>, collectionIds: number[] | undefined) {

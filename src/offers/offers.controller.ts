@@ -1,7 +1,8 @@
-import { Controller, Get, ParseIntPipe, Query, UsePipes } from '@nestjs/common';
-import { PaginationRequest } from 'src/pagination/pagination-request';
-import { PaginationResult } from 'src/pagination/pagination-result';
-import { SortingRequest } from 'src/sorting/sorting-request';
+import { Controller, Get, Query } from '@nestjs/common';
+
+import { PaginationRequest } from '../utils/pagination/pagination-request';
+import { PaginationResult } from '../utils/pagination/pagination-result';
+import { SortingRequest } from '../utils/sorting/sorting-request';
 import { OfferDto } from './offer-dto';
 import { OffersFilter } from './offers-filter';
 import { ParseOffersFilterPipe } from './offers-filter.pipe';

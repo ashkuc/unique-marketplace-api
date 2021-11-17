@@ -1,45 +1,26 @@
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
 import { AppModule } from './app.module';
-import { ParsePaginationRequestPipe } from './pagination/parse-pagination-request.pipe';
-import { ParseSortingRequestPipe } from './sorting/sorting-request.pipe';
-import { equalsIgnoreCase } from './string/equals-ignore-case';
-import { getConfig } from './config';
+import { runMigrations } from './database/migrations';
+import { ignoreQueryCase, useGlobalPipes } from './utils/application';
 
-const config = getConfig();
-
-function useSwagger(app: INestApplication) {
-  const config = new DocumentBuilder()
-    .setTitle('Marketplace api')
-    .setDescription('')
-    .setVersion('1.0')
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger/index.html', app, document);
+const initSwagger = (app: INestApplication, config) => {
+  const swaggerConf = new DocumentBuilder().setTitle(config.swagger.title).setDescription(config.swagger.description).setVersion(config.swagger.version).build();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConf);
+  SwaggerModule.setup('api/docs/', app, swaggerDocument);
 }
-
-function useGlobalPipes(app: INestApplication) {
-  app.useGlobalPipes(new ParsePaginationRequestPipe());
-  app.useGlobalPipes(new ParseSortingRequestPipe());
-}
-
-function ignoreQueryCase(app: INestApplication) {
-  app.use((req: any, res: any, next: any) => {
-    req.query = new Proxy(req.query, {
-      get: (target, name) => target[Object.keys(target)
-        .find(key => equalsIgnoreCase(key, name.toString())) ?? name]
-    })
-
-    next();
-  });}
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule), config = app.get('CONFIG');
+
+  // TODO: separate this activity
+  await runMigrations(config);
 
   if(config.disableSecurity) app.enableCors();
 
-  useSwagger(app);
+  initSwagger(app, config);
   ignoreQueryCase(app);
   useGlobalPipes(app);
 
