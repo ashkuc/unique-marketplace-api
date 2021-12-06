@@ -7,7 +7,7 @@ import { TransformationResult } from '../type-generators/transformation-result';
 import { UntypedRequest } from '../type-generators/untyped-request';
 import { SortingOrder } from './sorting-order';
 import { SortingParameter } from './sorting-parameter';
-import { SortingRequest } from './sorting-request';
+import { OfferSortingRequest, TradeSortingRequest } from './sorting-request';
 
 
 export interface ParseSortingRequestPipeOptions {
@@ -16,7 +16,7 @@ export interface ParseSortingRequestPipeOptions {
 }
 
 @Injectable()
-export class ParseSortingRequestPipe implements PipeTransform<any, TransformationResult<SortingRequest>> {
+export class ParseSortingRequestPipe implements PipeTransform<any, TransformationResult<OfferSortingRequest>> {
   protected exceptionFactory: (error: string) => any;
   private parsingRegex : RegExp;
 
@@ -32,12 +32,14 @@ export class ParseSortingRequestPipe implements PipeTransform<any, Transformatio
       this.parsingRegex = /(?<order>asc|desc)\((?<column>\w+)\)/i;
   }
 
-  transform(value: UntypedRequest<SortingRequest>, metadata: ArgumentMetadata): TransformationResult<SortingRequest> {
-    if(metadata?.metatype?.name !== 'SortingRequest') {
+  transform(value: UntypedRequest<OfferSortingRequest>, metadata: ArgumentMetadata): TransformationResult<OfferSortingRequest|TradeSortingRequest> {
+    const types = {'OfferSortingRequest': OfferSortingRequest, 'TradeSortingRequest': TradeSortingRequest};
+    const requestCls = types[metadata?.metatype?.name];
+    if(!requestCls) {
       return value;
     }
 
-    return new SortingRequest({
+    return new requestCls({
       sort: requestArray(value.sort).map((r) => this.parseSortingParameter(r)),
     });
   }

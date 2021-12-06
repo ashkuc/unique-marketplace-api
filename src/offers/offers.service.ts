@@ -6,7 +6,7 @@ import { paginate } from '../utils/pagination/paginate';
 import { PaginationRequest } from '../utils/pagination/pagination-request';
 import { PaginationResult } from '../utils/pagination/pagination-result';
 import { SortingOrder } from '../utils/sorting/sorting-order';
-import { SortingRequest } from '../utils/sorting/sorting-request';
+import { OfferSortingRequest } from '../utils/sorting/sorting-request';
 import { equalsIgnoreCase } from '../utils/string/equals-ignore-case';
 import { nullOrWhitespace } from '../utils/string/null-or-white-space';
 
@@ -22,7 +22,7 @@ export class OffersService {
   constructor(@Inject('DATABASE_CONNECTION') private connection: Connection) {
   }
 
-  applySort(query: SelectQueryBuilder<Offer>, sort: SortingRequest): SelectQueryBuilder<Offer> {
+  applySort(query: SelectQueryBuilder<Offer>, sort: OfferSortingRequest): SelectQueryBuilder<Offer> {
     const params = (sort.sort ?? [])
       .map(s => (
         {
@@ -127,7 +127,7 @@ export class OffersService {
     }
   }
 
-  async get(pagination: PaginationRequest, offersFilter: OffersFilter, sort: SortingRequest): Promise<PaginationResult<OfferDto>> {
+  async get(pagination: PaginationRequest, offersFilter: OffersFilter, sort: OfferSortingRequest): Promise<PaginationResult<OfferDto>> {
     let offers = this.connection.manager.createQueryBuilder(Offer, 'offer')
       .where('offer.OfferStatus = 1');
     offers = this.filter(offers, offersFilter);
