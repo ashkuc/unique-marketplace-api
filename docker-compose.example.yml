@@ -1,7 +1,7 @@
 version: "3.5"
 
 services:
-  market-postgres:
+  marketplace-postgres:
     image: postgres:13.4-alpine
     container_name: market-postgres
     environment:
@@ -16,15 +16,35 @@ services:
       - ../postgresql/market:/var/lib/postgresql/data
       - /etc/localtime:/etc/localtime:ro
 
-  market-web:
+  marketplace-web:
     build:
       context: .
       dockerfile: Dockerfile
-    image: market-web
-    container_name: market-web
+    image: marketplace-backend
+    container_name: marketplace-web
     environment:
       POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
       API_PORT: '5000'
       DISABLE_SECURITY: 'false'
     ports:
       - 5000:5000
+
+  marketplace-escrow-unique:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: marketplace-backend
+    container_name: marketplace-escrow-unique
+    environment:
+      POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
+    command: [ "npm", "run", "escrow:unique" ]
+
+  marketplace-escrow-kusama:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: marketplace-backend
+    container_name: marketplace-escrow-kusama
+    environment:
+      POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
+    command: [ "npm", "run", "escrow:kusama" ]
