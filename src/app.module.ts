@@ -10,11 +10,12 @@ import { OnHoldService } from './on-hold/on-hold.service';
 import { TradesController } from './trades/trades.controller';
 import { TradesService } from './trades/trades.service';
 import { EscrowModule } from './escrow/module';
+import { PlaygroundCommand } from './utils/playground';
 
 
 @Module({
   imports: [DatabaseModule, ConfigModule, CommandModule, EscrowModule],
   controllers: [OffersController, TradesController, OnHoldController],
-  providers: [OffersService, TradesService, OnHoldService]
+  providers: [OffersService, TradesService, OnHoldService, PlaygroundCommand]
 })
 export class AppModule {}

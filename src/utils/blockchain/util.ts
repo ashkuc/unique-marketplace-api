@@ -1,7 +1,8 @@
-import { ApiPromise } from '@polkadot/api';
+import {ApiPromise, Keyring} from '@polkadot/api';
 import { IKeyringPair } from '@polkadot/types/types';
 
 import { signTransaction, transactionStatus } from './unique';
+import * as tokenUtil from './token'
 
 
 const vec2str = arr => {
@@ -13,6 +14,25 @@ const str2vec = string => {
   return Array.from(string).map(x => x.charCodeAt(0));
 }
 
+type CrossAccountId = {
+  Substrate: string,
+} | {
+  Ethereum: string,
+}
+
+interface TokenParams {
+  collectionId: bigint;
+  owner: CrossAccountId | string;
+  constData?: string;
+  variableData?: string;
+}
+
+interface CollectionParams {
+  name: string;
+  description: string;
+  tokenPrefix: string;
+  modeprm?: any
+}
 
 class UniqueExplorer {
   api;
@@ -21,6 +41,17 @@ class UniqueExplorer {
   constructor(api: ApiPromise, admin: IKeyringPair) {
     this.api = api;
     this.admin = admin;
+  }
+
+  async getCollectionSchema(collectionId) {
+    const collection = await this.api.query.common.collectionById(collectionId);
+    return {collection, schema: tokenUtil.decodeSchema(collection.toHuman().constOnChainSchema)};
+  }
+
+  async getTokenData(tokenId, collectionId, schema?) {
+    if(!schema) schema = await this.getCollectionSchema(collectionId);
+    const constDataRaw = (await this.api.rpc.unique.constMetadata(collectionId, tokenId)).toHuman();
+    return {...schema, data: tokenUtil.decodeData(constDataRaw, schema.schema)};
   }
 
   async getCollectionData (collectionId: bigint) {
@@ -34,11 +65,15 @@ class UniqueExplorer {
     return collectionData;
   }
 
-  async createCollection({name, description, tokenPrefix, modeprm}, label='new collection') {
-    if(typeof modeprm === 'undefined') modeprm = {nft: null};
+  async getTokenOwner(collectionId: bigint, tokenId: bigint) {
+    return (await this.api.rpc.unique.tokenOwner(collectionId, tokenId)).toJSON();
+  }
+
+  async createCollection(options: CollectionParams, label='new collection') {
+    if(typeof options.modeprm === 'undefined') options.modeprm = {nft: null};
     let creationResult = await signTransaction(
       this.admin,
-      this.api.tx.unique.createCollection(str2vec(name), str2vec(description), str2vec(tokenPrefix), modeprm),
+      this.api.tx.unique.createCollection(str2vec(options.name), str2vec(options.description), str2vec(options.tokenPrefix), options.modeprm),
       'api.tx.unique.createCollection'
     ) as any;
     if(creationResult.status !== transactionStatus.SUCCESS) {
@@ -59,10 +94,10 @@ class UniqueExplorer {
     return collectionId;
   }
 
-  async createToken({collectionId, owner, constData, variableData}, label='new token') {
+  async createToken(options: TokenParams, label='new token') {
     let creationResult = await signTransaction(
       this.admin,
-      this.api.tx.unique.createItem(collectionId, (owner.Substrate || owner.Ethereum) ? owner : { Substrate: owner }, { nft: { const_data: constData, variable_data: variableData } }),
+      this.api.tx.unique.createItem(options.collectionId, (typeof options.owner === 'string') ? { Substrate: options.owner } : options.owner, { nft: { const_data: options.constData, variable_data: options.variableData } }),
       'api.tx.unique.createItem'
     ) as any;
     if(creationResult.status !== transactionStatus.SUCCESS) {
@@ -91,6 +126,56 @@ class UniqueExplorer {
   }
 }
 
+
+const normalizeAccountId = input => {
+  if (typeof input === 'string') {
+    if (input.length === 48 || input.length === 47) {
+      return {Substrate: input};
+    } else if (input.length === 42 && input.startsWith('0x')) {
+      return {Ethereum: input.toLowerCase()};
+    } else if (input.length === 40 && !input.startsWith('0x')) {
+      return {Ethereum: '0x' + input.toLowerCase()};
+    } else {
+      throw new Error(`Unknown address format: "${input}"`);
+    }
+  }
+  if ('address' in input) {
+    return {Substrate: input.address};
+  }
+  if ('Ethereum' in input) {
+    return {
+      Ethereum: input.Ethereum.toLowerCase(),
+    };
+  } else if ('ethereum' in input) {
+    return {
+      Ethereum: (input as any).ethereum.toLowerCase(),
+    };
+  } else if ('Substrate' in input) {
+    return input;
+  }else if ('substrate' in input) {
+    return {
+      Substrate: (input as any).substrate,
+    };
+  }
+
+  // AccountId
+  return {Substrate: input.toString()};
+}
+
+
+const privateKey = (account: string) => {
+  const keyring = new Keyring({type: 'sr25519'});
+
+  return keyring.addFromUri(account);
+}
+
+
+const extractCollectionIdFromAddress = (address: string): number => {
+  if (!(address.length == 42 || address.length == 40)) throw new Error('address wrong format');
+  return parseInt(address.substr(address.length - 8), 16);
+}
+
+
 export {
-  vec2str, str2vec, UniqueExplorer
+  vec2str, str2vec, UniqueExplorer, normalizeAccountId, privateKey, extractCollectionIdFromAddress
 }

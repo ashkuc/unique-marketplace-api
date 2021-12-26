@@ -1,17 +1,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ApiPromise, Keyring } from '@polkadot/api';
+import { ApiPromise } from '@polkadot/api';
 import { addressToEvm, evmToAddress } from '@polkadot/util-crypto';
 
 // TODO: WTF??? oO
 import * as Web3_ from 'web3';
 const Web3 = Web3_ as any;
 
-import { signTransaction } from '../../src/utils/blockchain/unique';
+import { signTransaction } from './unique';
+import { privateKey } from './util';
 
-const contractHelpersAbi = JSON.parse(fs.readFileSync(path.join(__dirname, 'contractHelpersAbi.json')).toString());
-const nonFungibleAbi = JSON.parse(fs.readFileSync(path.join(__dirname, 'nonFungibleAbi.json')).toString());
+const contractHelpersAbi = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'blockchain', 'contractHelpersAbi.json')).toString());
+const nonFungibleAbi = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'blockchain', 'nonFungibleAbi.json')).toString());
 
 
 const GAS_ARGS = {gas: 2500000};
@@ -27,11 +28,6 @@ const connectWeb3 = opalUrl => {
   return {web3, provider};
 }
 
-const privateKey = (account: string) => {
-  const keyring = new Keyring({type: 'sr25519'});
-
-  return keyring.addFromUri(account);
-}
 
 const createEthAccount = (web3) => {
   const account = web3.eth.accounts.create();
@@ -69,7 +65,7 @@ const subToEth = (eth: string): string => {
 
 const transferBalanceToEth = async (api: ApiPromise, admin, target: string, amount = 1000n * UNIQUE) => {
   const tx = api.tx.balances.transfer(evmToAddress(target), amount);
-  return await signTransaction(admin, tx);
+  return await signTransaction(admin, tx, 'api.tx.balances.transfer');
 }
 
 const contractHelpers = (web3, caller: string) => {
@@ -80,7 +76,27 @@ const createEvmCollection = (collectionId: number, from, web3) => {
   return new web3.eth.Contract(nonFungibleAbi, collectionIdToAddress(collectionId), {from});
 }
 
+
+const executeEthTxOnSub = async (web3, api: ApiPromise, admin, to: any, mkTx: (methods: any) => any, {value = 0}: {value?: bigint | number} = { }) => {
+  const tx = api.tx.evm.call(
+    subToEth(admin.address),
+    to.options.address,
+    mkTx(to.methods).encodeABI(),
+    value,
+    GAS_ARGS.gas,
+    await web3.eth.getGasPrice(),
+    null,
+  );
+  const result = await signTransaction(admin, tx, 'api.tx.evm.call') as any;
+  return {success: result.result.events.some(({event: {section, method}}) => section == 'evm' && method == 'Executed'), result: result};
+}
+
+const unlockAccount = (web3, account, password, timeout = 60) => {
+  return web3.eth.personal.unlockAccount(account, password, timeout);
+}
+
+
 export {
-  createEthAccount, createEthAccountWithBalance, createEvmCollection, transferBalanceToEth, subToEth, subToEthLowercase, privateKey, GAS_ARGS, UNIQUE,
-  contractHelpers, connectWeb3
+  createEthAccount, createEthAccountWithBalance, createEvmCollection, transferBalanceToEth, subToEth, subToEthLowercase, GAS_ARGS, UNIQUE,
+  contractHelpers, connectWeb3, executeEthTxOnSub, unlockAccount
 }

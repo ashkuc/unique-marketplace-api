@@ -20,12 +20,16 @@ const logLevel = {
 };
 
 const log = (message, level = logLevel.INFO) => {
-  if(level === logLevel.ERROR) message = (message && message.stack) || message;
-  try {
-    if (typeof message !== 'string') message = JSON.stringify(message);
+  if(level === logLevel.ERROR) message = message?.stack || message;
+  let rawMsgs = Array.isArray(message) ? message : [message], msgs = [];
+  for(let msg of rawMsgs) {
+    try {
+      if (typeof message !== 'string') msgs.push(JSON.stringify(msg));
+      else msgs.push(msg)
+    }
+    catch (e) {}
   }
-  catch(e) {}
-  console.log(`[${getDate()} ${getTime()}] ${level}: ${message}`);
+  console.log(`[${getDate()} ${getTime()}] ${level}:`, ...msgs);
 }
 
 
