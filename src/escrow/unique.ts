@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Escrow } from './base'
-import * as logging from '../utils/logging'
+import { Escrow } from './base';
+import * as logging from '../utils/logging';
 import { delay } from '../utils/delay';
 import { normalizeAccountId, extractCollectionIdFromAddress, UniqueExplorer } from '../utils/blockchain/util';
 import { EscrowService } from './service';
@@ -13,6 +13,7 @@ export class UniqueEscrow extends Escrow {
   explorer;
   SECTION_UNIQUE = 'unique';
   SECTION_CONTRACT = 'evm';
+  SECTION_ETHEREUM = 'ethereum';
 
   BLOCKED_SCHEMA_KEYS = ['ipfsJson'];
 
@@ -151,6 +152,17 @@ export class UniqueEscrow extends Escrow {
     }
   }
 
+  async processEthereum(blockNum, rawExtrinsic) {
+    const extrinsic = rawExtrinsic.toHuman().method;
+    if(!('transaction' in extrinsic.args)) return;
+    const inputData = this.inputDecoder.decodeData(extrinsic.args.transaction.input);
+    if(inputData.method === 'depositKSM') {
+      const amount = inputData.inputs[0].toString();
+      const sender = normalizeAccountId(inputData.inputs[1]);
+      logging.log(`Got depositKSM (Sender: ${this.address2string(sender)}, amount: ${amount}) in block #${blockNum}`);
+    }
+  }
+
   async scanBlock(blockNum: bigint | number, force: boolean = false) {
     if(!force && (await this.service.isBlockScanned(blockNum))) return; // Block already scanned
 
@@ -159,6 +171,7 @@ export class UniqueEscrow extends Escrow {
     const signedBlock = await this.api.rpc.chain.getBlock(blockHash);
     const allRecords = await this.api.query.system.events.at(blockHash);
 
+    let timestamp = null;
 
     for (let [extrinsicIndex, ex] of signedBlock.block.extrinsics.entries()) {
       let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
@@ -173,10 +186,15 @@ export class UniqueEscrow extends Escrow {
         await this.processCall(blockNum, ex);
         continue;
       }
+      if(ex.method.section === this.SECTION_ETHEREUM && ex.method.method === 'transact') {
+        await this.processEthereum(blockNum, ex);
+        continue;
+      }
       if(ex.method.section === this.SECTION_TIMESTAMP && ex.method.method === 'set') {
-        await this.service.addBlock(blockNum, ex.method.toJSON().args.now);
+        timestamp = ex.method.toJSON().args.now;
       }
     }
+    if(timestamp !== null) await this.service.addBlock(blockNum, timestamp);
   }
 
   async processDeposits() {

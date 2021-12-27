@@ -15,15 +15,15 @@ export default {
     description: ''
   },
   blockchain: {
-    escrowSeed: process.env.ESCROW_SEED || '//Alice',
-    ownerSeed: process.env.MATCHER_OWNER_SEED || '//Alice',
+    escrowSeed: process.env.ESCROW_SEED || null, // For kusama and contract creation
     testingAdminSeed: '//Alice',
     unique: {
       wsEndpoint: process.env.UNIQUE_WS_ENDPOINT || 'wss://opal.unique.network',
       network: process.env.UNIQUE_NETWORK || 'quartz',
       testingWsEndpoint: 'ws://localhost:9944',
       startFromBlock : `${process.env.UNIQUE_START_FROM_BLOCK || 'current'}`,
-      marketContractAddress : process.env.MATCHER_CONTRACT_ADDRESS || "5EuBcZYh47ruAjrDweHvH4Fm5BwYkiFHNpTGKWAHkA3WFsEG",
+      matcherOwnerSeed: process.env.MATCHER_ETH_OWNER_SEED || null,
+      matcherContractAddress : process.env.MATCHER_CONTRACT_ADDRESS || null,
       collectionIds: (process.env.UNIQUE_COLLECTION_IDS || '').split(',').map(x => Number(x.trim())).filter(x => (!isNaN(x) && x > 1 && x !== Infinity))
     },
     kusama: {

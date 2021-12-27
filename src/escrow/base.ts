@@ -1,4 +1,4 @@
-import {EscrowService} from "./service";
+import { EscrowService } from './service';
 
 export class Escrow {
   api;

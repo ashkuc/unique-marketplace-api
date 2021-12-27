@@ -40,8 +40,7 @@
     "typeorm": "0.2.41",
     "uuid": "8.3.2",
     "web3": "1.6.1",
-    "protobufjs": "6.11.2",
-    "bignumber.js": "9.0.2"
+    "protobufjs": "6.11.2"
   },
   "devDependencies": {
     "@nestjs/testing": "^8.0.0",
