@@ -1,11 +1,11 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Connection } from 'typeorm';
-
-import { BlockchainBlock, NFTTransfer, ContractAsk, SearchIndex } from '../entity/evm';
-import { Offer, Trade, TokenTextSearch } from '../entity';
-import { ASK_STATUS } from './constants';
 import { v4 as uuid } from 'uuid';
-import {decodeAddress} from "@polkadot/util-crypto";
+import { decodeAddress } from "@polkadot/util-crypto";
+
+import { BlockchainBlock, NFTTransfer, ContractAsk, SearchIndex, MoneyTransfer } from '../entity/evm';
+import { Offer, Trade, TokenTextSearch } from '../entity';
+import { ASK_STATUS, MONEY_TRANSFER_TYPES, MONEY_TRANSFER_STATUS } from './constants';
 
 
 const oldOfferStatus = {
@@ -56,6 +56,33 @@ export class EscrowService {
     const repository = this.db.getRepository(BlockchainBlock);
     const created_at = new Date(timestamp);
     await repository.upsert({block_number: `${blockNum}`, network: this.getNetwork(network), created_at}, ["block_number", "network"]);
+  }
+
+  async registerKusamaDeposit(amount, address, blockNumber) {
+    const repository = this.db.getRepository(MoneyTransfer);
+    await repository.insert({
+      id: uuid(), amount: amount, block_number: blockNumber, network: this.config.blockchain.kusama.network, type: MONEY_TRANSFER_TYPES.DEPOSIT,
+      status: MONEY_TRANSFER_STATUS.PENDING, created_at: new Date(), updated_at: new Date(), extra: {address},
+      currency: "2" // TODO: check this
+    });
+  }
+
+  async getPendingKusamaDeposit() {
+    return this.db.getRepository(MoneyTransfer).createQueryBuilder("money_transfer").orderBy("created_at", "ASC").where(
+      "(money_transfer.network = :network AND money_transfer.type = :type AND money_transfer.status = :status)",
+      {network: this.config.blockchain.kusama.network, type: MONEY_TRANSFER_TYPES.DEPOSIT, status: MONEY_TRANSFER_STATUS.PENDING}
+    ).limit(1).getOne();
+  }
+
+  async getPendingKusamaWithdraw() {
+    return this.db.getRepository(MoneyTransfer).createQueryBuilder("money_transfer").orderBy("created_at", "ASC").where(
+      "(money_transfer.network = :network AND money_transfer.type = :type AND money_transfer.status = :status)",
+      {network: this.config.blockchain.kusama.network, type: MONEY_TRANSFER_TYPES.WITHDRAW, status: MONEY_TRANSFER_STATUS.PENDING}
+    ).limit(1).getOne();
+  }
+
+  async updateMoneyTransferStatus(id, status) {
+    await this.db.getRepository(MoneyTransfer).update({id}, {status, updated_at: new Date()});
   }
 
   async oldGetActiveOffer(collectionId: number, tokenId: number) {

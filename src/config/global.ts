@@ -28,6 +28,7 @@ export default {
     },
     kusama: {
       wsEndpoint: process.env.KUSAMA_WS_ENDPOINT || 'wss://kusama-rpc.polkadot.io',
+      network: process.env.KUSAMA_NETWORK || 'kusama',
       testingWsEndpoint: 'wss://ws-relay-opal.unique.network',
       startFromBlock: `${process.env.KUSAMA_START_FROM_BLOCK || 'current'}`,
       ss58Format: parseInt(process.env.KUSAMA_SS58_FORMAT || '2'),

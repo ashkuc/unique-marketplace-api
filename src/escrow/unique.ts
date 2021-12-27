@@ -7,13 +7,12 @@ import { delay } from '../utils/delay';
 import { normalizeAccountId, extractCollectionIdFromAddress, UniqueExplorer } from '../utils/blockchain/util';
 import { EscrowService } from './service';
 
+
 export class UniqueEscrow extends Escrow {
   inputDecoder;
-  service: EscrowService;
   explorer;
   SECTION_UNIQUE = 'unique';
   SECTION_CONTRACT = 'evm';
-  SECTION_TIMESTAMP = 'timestamp';
 
   BLOCKED_SCHEMA_KEYS = ['ipfsJson'];
 
@@ -27,20 +26,11 @@ export class UniqueEscrow extends Escrow {
   }
 
   constructor(api, admin, config, service: EscrowService) {
-    super(api, admin, config);
-    this.service = service;
+    super(api, admin, config, service);
     const InputDataDecoder = require('ethereum-input-data-decoder');
     const abi = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'blockchain', 'MarketPlace.abi')).toString());
     this.inputDecoder = new InputDataDecoder(abi);
     this.explorer = new UniqueExplorer(api, admin);
-  }
-
-  isSuccessfulExtrinsic(eventRecords, extrinsicIndex) {
-    const events = eventRecords.filter(({ phase }) =>
-      phase.isApplyExtrinsic && phase.asApplyExtrinsic.eq(extrinsicIndex)
-    ).map(({ event }) => `${event.section}.${event.method}`);
-
-    return events.includes('system.ExtrinsicSuccess');
   }
 
   *convertEnumToString(value, key, protoSchema) {
@@ -188,6 +178,15 @@ export class UniqueEscrow extends Escrow {
       }
     }
   }
+
+  async processDeposits() {
+    while(true) {
+      let deposit = await this.service.getPendingKusamaDeposit();
+      if(!deposit) break;
+      // await matcher.methods.depositKSM(PRICE, lib.subToEth(alice.address)).send({from: escrow});
+    }
+  }
+
   async work() {
     while(true) {
       logging.log('Unique escrow working');

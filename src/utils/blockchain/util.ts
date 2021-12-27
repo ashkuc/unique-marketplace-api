@@ -4,6 +4,9 @@ import { IKeyringPair } from '@polkadot/types/types';
 import { signTransaction, transactionStatus } from './unique';
 import * as tokenUtil from './token'
 
+const BigNumber = require('bignumber.js');
+BigNumber.config({ DECIMAL_PLACES: 12, ROUNDING_MODE: BigNumber.ROUND_DOWN, decimalSeparator: '.' });
+
 
 const vec2str = arr => {
   return arr.map(x => String.fromCharCode(parseInt(x))).join('')
@@ -177,5 +180,5 @@ const extractCollectionIdFromAddress = (address: string): number => {
 
 
 export {
-  vec2str, str2vec, UniqueExplorer, normalizeAccountId, privateKey, extractCollectionIdFromAddress
+  vec2str, str2vec, UniqueExplorer, normalizeAccountId, privateKey, extractCollectionIdFromAddress, BigNumber
 }
