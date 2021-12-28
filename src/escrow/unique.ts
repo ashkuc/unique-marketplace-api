@@ -3,14 +3,19 @@ import * as path from 'path';
 
 import { Escrow } from './base';
 import * as logging from '../utils/logging';
-import { delay } from '../utils/delay';
 import { normalizeAccountId, extractCollectionIdFromAddress, UniqueExplorer } from '../utils/blockchain/util';
-import { EscrowService } from './service';
+import * as lib from '../utils/blockchain/web3';
+import * as unique from '../utils/blockchain/unique';
+import * as util from '../utils/blockchain/util';
+import { MONEY_TRANSFER_STATUS } from './constants';
 
 
 export class UniqueEscrow extends Escrow {
   inputDecoder;
   explorer;
+  web3;
+  matcherOwner;
+  matcher;
   SECTION_UNIQUE = 'unique';
   SECTION_CONTRACT = 'evm';
   SECTION_ETHEREUM = 'ethereum';
@@ -26,12 +31,23 @@ export class UniqueEscrow extends Escrow {
     throw Error('Invalid address');
   }
 
-  constructor(api, admin, config, service: EscrowService) {
-    super(api, admin, config, service);
+  async init() {
+    this.initialized = true;
+    await this.connectApi();
     const InputDataDecoder = require('ethereum-input-data-decoder');
-    const abi = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'blockchain', 'MarketPlace.abi')).toString());
+    const abi = JSON.parse(fs.readFileSync(path.join(this.configObj.rootDir, 'blockchain', 'MarketPlace.abi')).toString());
     this.inputDecoder = new InputDataDecoder(abi);
-    this.explorer = new UniqueExplorer(api, admin);
+    this.explorer = new UniqueExplorer(this.api, this.admin);
+    this.web3 = lib.connectWeb3(this.config('unique.wsEndpoint')).web3;
+    this.matcherOwner = this.web3.eth.accounts.privateKeyToAccount(this.config('unique.matcherOwnerSeed'));
+    this.web3.eth.accounts.wallet.add(this.matcherOwner.privateKey);
+
+    this.matcher = new this.web3.eth.Contract(abi, this.config('unique.matcherContractAddress'));
+  }
+
+  async connectApi() {
+    this.api = await unique.connectApi(this.config('unique.wsEndpoint'), true);
+    this.admin = util.privateKey(this.config('escrowSeed'));
   }
 
   *convertEnumToString(value, key, protoSchema) {
@@ -89,10 +105,10 @@ export class UniqueEscrow extends Escrow {
     const addressTo = normalizeAccountId(extrinsic.args.recipient);
     const collectionId = parseInt(extrinsic.args.collection_id);
     const tokenId = parseInt(extrinsic.args.item_id);
-    if(this.config.blockchain.unique.collectionIds.indexOf(collectionId) === -1) return; // Collection not managed by market
+    if(this.config('unique.collectionIds').indexOf(collectionId) === -1) return; // Collection not managed by market
     await this.service.registerTransfer(blockNum, {
       collectionId, tokenId, addressTo: this.address2string(addressTo), addressFrom: this.address2string(addressFrom)
-    });
+    }, this.config('unique.network'));
     logging.log(`Got nft transfer (collectionId: ${collectionId}, tokenId: ${tokenId}) in block #${blockNum}`);
   }
 
@@ -104,13 +120,13 @@ export class UniqueEscrow extends Escrow {
     const collectionEVMAddress = inputData.inputs[2];
     const collectionId = extractCollectionIdFromAddress(collectionEVMAddress);
     const tokenId = inputData.inputs[3].toNumber();
-    if(this.config.blockchain.unique.collectionIds.indexOf(collectionId) === -1) return; // Collection not managed by market
+    if(this.config('unique.collectionIds').indexOf(collectionId) === -1) return; // Collection not managed by market
     await this.service.registerAsk(blockNum, {
       collectionId, tokenId, addressTo: this.address2string(addressTo), addressFrom: this.address2string(addressFrom), price, currency
-    });
+    }, this.config('unique.network'));
     logging.log(`Got ask (collectionId: ${collectionId}, tokenId: ${tokenId}, price: ${price}) in block #${blockNum}`);
     // TODO: use correct address (Or maybe we don't need this at all)
-    if(this.address2string(addressTo) === this.config.blockchain.unique.marketContractAddress || true) {
+    if(this.address2string(addressTo) === this.config('unique.matcherContractAddress') || true) {
       await this.service.oldRegisterOffer({collectionId, tokenId, price: inputData.inputs[0], seller: this.address2string(addressFrom)});
       await this.service.oldAddSearchIndexes(await this.getSearchIndexes(collectionId, tokenId), {collectionId, tokenId});
     }
@@ -164,7 +180,8 @@ export class UniqueEscrow extends Escrow {
   }
 
   async scanBlock(blockNum: bigint | number, force: boolean = false) {
-    if(!force && (await this.service.isBlockScanned(blockNum))) return; // Block already scanned
+    const network = this.config('unique.network');
+    if(!force && (await this.service.isBlockScanned(blockNum, network))) return; // Block already scanned
 
     const blockHash = await this.api.rpc.chain.getBlockHash(blockNum);
 
@@ -177,7 +194,7 @@ export class UniqueEscrow extends Escrow {
       let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
       if(!isSuccess) continue;
       if(['parachainSystem'].indexOf(ex.method.section) > -1) continue;
-      if(this.config.dev.debugScanBlock && ex.method.section != 'timestamp') logging.log([blockNum, ex.method.section, ex.method.method]);
+      if(this.configObj.dev.debugScanBlock && ex.method.section != 'timestamp') logging.log([blockNum, ex.method.section, ex.method.method]);
       if(ex.method.section === this.SECTION_UNIQUE && ex.method.method === 'transfer') {
         await this.processTransfer(blockNum, ex);
         continue;
@@ -194,21 +211,53 @@ export class UniqueEscrow extends Escrow {
         timestamp = ex.method.toJSON().args.now;
       }
     }
-    if(timestamp !== null) await this.service.addBlock(blockNum, timestamp);
+    if(timestamp !== null) await this.service.addBlock(blockNum, timestamp, network);
   }
 
   async processDeposits() {
     while(true) {
       let deposit = await this.service.getPendingKusamaDeposit();
       if(!deposit) break;
-      // await matcher.methods.depositKSM(PRICE, lib.subToEth(alice.address)).send({from: escrow});
+      await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.IN_PROGRESS);
+      try {
+        logging.log(`Unique depositKSM for money transfer #${deposit.id} started`);
+        await this.matcher.methods.depositKSM(deposit.amount, lib.subToEth(deposit.extra.address)).send({from: this.matcherOwner.address, ...lib.GAS_ARGS});
+        await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.COMPLETED);
+        logging.log(`Unique depositKSM for money transfer #${deposit.id} successful`);
+      }
+      catch(e) {
+        await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.FAILED);
+        logging.log(`Unique depositKSM for money transfer #${deposit.id} failed`, logging.level.ERROR);
+        logging.log(e, logging.level.ERROR);
+      }
     }
   }
 
-  async work() {
-    while(true) {
-      logging.log('Unique escrow working');
-      await delay(5 * 1000);
+  async processBlock(blockNum, force=false) {
+    try {
+      await this.scanBlock(blockNum, force);
+    } catch(e) {
+      logging.log(`Unable to scan block #${blockNum} (WTF?)`, logging.level.ERROR);
+      logging.log(e, logging.level.ERROR);
     }
+    await this.processDeposits();
+  }
+
+  async getStartBlock() {
+    let startFromBlock = this.config('unique.startFromBlock');
+    if(startFromBlock === 'latest') return await this.getLatestBlockNumber() - 10;
+    let latestBlock = await this.service.getLastScannedBlock(this.config('unique.network'));
+    if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
+    if(startFromBlock === 'current') return await this.getLatestBlockNumber() - 10;
+    return parseInt(startFromBlock);
+  }
+
+  async work() {
+    if(!this.initialized) throw Error('Unable to start uninitialized escrow. Call "await escrow.init()" before work');
+    this.store.currentBlock = await this.getStartBlock();
+    this.store.latestBlock = await this.getLatestBlockNumber();
+    logging.log(`Unique escrow starting from block #${this.store.currentBlock} (mode: ${this.config('unique.startFromBlock')}, maxBlock: ${this.store.latestBlock})`)
+    await this.subscribe();
+    await this.mainLoop();
   }
 }

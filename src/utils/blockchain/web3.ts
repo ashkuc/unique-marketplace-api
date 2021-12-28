@@ -98,5 +98,6 @@ const unlockAccount = (web3, account, password, timeout = 60) => {
 
 export {
   createEthAccount, createEthAccountWithBalance, createEvmCollection, transferBalanceToEth, subToEth, subToEthLowercase, GAS_ARGS, UNIQUE,
-  contractHelpers, connectWeb3, executeEthTxOnSub, unlockAccount
+  contractHelpers, connectWeb3, executeEthTxOnSub, unlockAccount, collectionIdToAddress,
+  nonFungibleAbi
 }

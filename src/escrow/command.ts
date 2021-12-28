@@ -1,11 +1,15 @@
 import { Command, Positional } from 'nestjs-command';
+import { ModuleRef } from '@nestjs/core';
 import { Injectable } from '@nestjs/common';
 
 import { KusamaEscrow } from './kusama';
 import { UniqueEscrow } from './unique';
+import { EscrowService } from './service';
 
 @Injectable()
 export class EscrowCommand {
+  constructor(private moduleRef: ModuleRef) {}
+
   @Command({
     command: 'start_escrow <network>',
     describe: 'Starts escrow service for selected network',
@@ -19,7 +23,10 @@ export class EscrowCommand {
       console.error(`No escrow service for ${network} network`);
       return;
     }
-    const escrow = new networks[network]();
+    const escrow = new networks[network](this.moduleRef.get('CONFIG', {strict: false}), this.moduleRef.get(EscrowService, {strict: false}));
+
+    await escrow.init();
+
     await escrow.work()
   }
 }

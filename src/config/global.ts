@@ -16,11 +16,9 @@ export default {
   },
   blockchain: {
     escrowSeed: process.env.ESCROW_SEED || null, // For kusama and contract creation
-    testingAdminSeed: '//Alice',
     unique: {
       wsEndpoint: process.env.UNIQUE_WS_ENDPOINT || 'wss://opal.unique.network',
       network: process.env.UNIQUE_NETWORK || 'quartz',
-      testingWsEndpoint: 'ws://localhost:9944',
       startFromBlock : `${process.env.UNIQUE_START_FROM_BLOCK || 'current'}`,
       matcherOwnerSeed: process.env.MATCHER_ETH_OWNER_SEED || null,
       matcherContractAddress : process.env.MATCHER_CONTRACT_ADDRESS || null,
@@ -29,10 +27,25 @@ export default {
     kusama: {
       wsEndpoint: process.env.KUSAMA_WS_ENDPOINT || 'wss://kusama-rpc.polkadot.io',
       network: process.env.KUSAMA_NETWORK || 'kusama',
-      testingWsEndpoint: 'wss://ws-relay-opal.unique.network',
       startFromBlock: `${process.env.KUSAMA_START_FROM_BLOCK || 'current'}`,
       ss58Format: parseInt(process.env.KUSAMA_SS58_FORMAT || '2'),
-      marketCommission: parseInt(process.env.COMMISSION || '10')
+      marketCommission: parseInt(process.env.COMMISSION_PERCENT || '10')
+    },
+    testing: {
+      escrowSeed: '//Alice',
+      unique: {
+        wsEndpoint: 'ws://localhost:9944',
+        network: 'private_opal',
+        startFromBlock: '1',
+        matcherOwnerSeed: null,
+        matcherContractAddress: null,
+        collectionIds: [1]
+      },
+      kusama: {
+        wsEndpoint: 'wss://ws-relay-opal.unique.network',
+        network: 'private_kusama',
+        startFromBlock: '1'
+      }
     }
   }
 }

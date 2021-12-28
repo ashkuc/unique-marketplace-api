@@ -1,9 +1,30 @@
 version: "3.5"
 
+x-marketplace: &marketplace-backend
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: marketplace-backend
+  environment:
+    POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
+    API_PORT: '5000'
+    DISABLE_SECURITY: 'false'
+    ESCROW_SEED: '//Alice'
+    UNIQUE_WS_ENDPOINT: 'wss://opal.unique.network'
+    UNIQUE_NETWORK: 'opal'
+    UNIQUE_START_FROM_BLOCK: 'current'
+    MATCHER_ETH_OWNER_SEED: 'Get by running "npm run playground deploy_contract"'
+    MATCHER_CONTRACT_ADDRESS: 'Get by running "npm run playground deploy_contract"'
+    UNIQUE_COLLECTION_IDS: '1, 2, 3'
+    KUSAMA_WS_ENDPOINT: 'wss://ws-relay-opal.unique.network'
+    KUSAMA_NETWORK: 'private_ksm'
+    KUSAMA_START_FROM_BLOCK: 'current'
+    COMMISSION_PERCENT: '10'
+
 services:
   marketplace-postgres:
-    image: postgres:13.4-alpine
-    container_name: market-postgres
+    image: postgres:14.1-alpine
+    container_name: marketplace-postgres
     environment:
       POSTGRES_DB: 'marketplace_db'
       POSTGRES_USER: 'marketplace'
@@ -11,40 +32,23 @@ services:
       POSTGRES_PORT: '5432'
       POSTGRES_INITDB_ARGS: "--auth-local=trust"
     ports:
-      - 5432:5432
+      - 5492:5432
     volumes:
-      - ../postgresql/market:/var/lib/postgresql/data
+      - ../postgresql/marketplace:/var/lib/postgresql/data
       - /etc/localtime:/etc/localtime:ro
 
   marketplace-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: marketplace-backend
     container_name: marketplace-web
-    environment:
-      POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
-      API_PORT: '5000'
-      DISABLE_SECURITY: 'false'
     ports:
       - 5000:5000
+    <<: *marketplace-backend
 
   marketplace-escrow-unique:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: marketplace-backend
     container_name: marketplace-escrow-unique
-    environment:
-      POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
     command: [ "npm", "run", "escrow:unique" ]
+    <<: *marketplace-backend
 
   marketplace-escrow-kusama:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: marketplace-backend
     container_name: marketplace-escrow-kusama
-    environment:
-      POSTGRES_URL: 'postgres://marketplace:12345@marketplace-postgres:5432/marketplace_db'
     command: [ "npm", "run", "escrow:kusama" ]
+    <<: *marketplace-backend

@@ -10,4 +10,6 @@ COPY . .
 
 RUN npm run build
 
+RUN cp -r /src/src/blockchain /src/dist/blockchain
+
 CMD ["npm", "run", "prod"]

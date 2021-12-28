@@ -2,9 +2,10 @@ import { IKeyringPair } from '@polkadot/types/types';
 
 import { Escrow } from './base';
 import * as logging from '../utils/logging';
-import { delay } from '../utils/delay';
 import { transactionStatus, signTransaction } from '../utils/blockchain/polka';
 import { MONEY_TRANSFER_STATUS } from './constants';
+import * as kusama from '../utils/blockchain/kusama';
+import * as util from '../utils/blockchain/util';
 
 const kusamaBlockMethods = {
   METHOD_TRANSFER_KEEP_ALIVE: 'transferKeepAlive',
@@ -14,6 +15,12 @@ const kusamaBlockMethods = {
 
 export class KusamaEscrow extends Escrow {
   SECTION_BALANCES = 'balances'
+
+  async init() {
+    this.initialized = true;
+    this.api = await kusama.connectApi(this.config('kusama.wsEndpoint'), true);
+    this.admin = util.privateKey(this.config('escrowSeed'));
+  }
 
   async getBalance(address: string) {
     return BigInt((await this.api.query.system.account(address)).data.free.toJSON());
@@ -37,7 +44,7 @@ export class KusamaEscrow extends Escrow {
   }
 
   async scanBlock(blockNum, force=false) {
-    const network = this.config.blockchain.kusama.network;
+    const network = this.config('kusama.network');
     if(!force && (await this.service.isBlockScanned(blockNum, network))) return; // Block already scanned
     const blockHash = await this.api.rpc.chain.getBlockHash(blockNum);
 
@@ -82,7 +89,7 @@ export class KusamaEscrow extends Escrow {
 
         await this.transfer(this.admin, withdraw.extra.address, amountReturned);
         await this.service.updateMoneyTransferStatus(withdraw.id, MONEY_TRANSFER_STATUS.COMPLETED);
-        logging.log(`Kusama withdraw for money transfer #${withdraw.id} successful`)
+        logging.log(`Kusama withdraw for money transfer #${withdraw.id} successful`);
       } catch (e) {
         await this.service.updateMoneyTransferStatus(withdraw.id, MONEY_TRANSFER_STATUS.FAILED);
         logging.log(`Kusama withdraw for money transfer #${withdraw.id} failed`, logging.level.ERROR);
@@ -91,10 +98,32 @@ export class KusamaEscrow extends Escrow {
     }
   }
 
-  async work() {
-    while(true) {
-      logging.log('Kusama escrow working');
-      await delay(5 * 1000);
+  async processBlock(blockNum, force=false) {
+    try {
+      await this.scanBlock(blockNum, force);
+    } catch(e) {
+      logging.log(`Unable to scan block #${blockNum} (WTF?)`, logging.level.ERROR);
+      logging.log(e, logging.level.ERROR);
     }
+    await this.processWithdraw();
+  }
+
+  async getStartBlock() {
+    let startFromBlock = this.config('kusama.startFromBlock');
+    if(startFromBlock === 'latest') return await this.getLatestBlockNumber() - 10;
+    let latestBlock = await this.service.getLastScannedBlock(this.config('kusama.network'));
+    if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
+    if(startFromBlock === 'current') return await this.getLatestBlockNumber() - 10;
+    return parseInt(startFromBlock);
+  }
+
+  async work() {
+    if(!this.initialized) throw Error('Unable to start uninitialized escrow. Call "await escrow.init()" before work');
+    this.store.currentBlock = await this.getStartBlock();
+    this.store.latestBlock = await this.getLatestBlockNumber();
+    logging.log(`Kusama escrow starting from block #${this.store.currentBlock} (mode: ${this.config('kusama.startFromBlock')}, maxBlock: ${this.store.latestBlock})`)
+    logging.log(`Kusama admin address: ${this.admin.address}`);
+    await this.subscribe();
+    await this.mainLoop();
   }
 }
