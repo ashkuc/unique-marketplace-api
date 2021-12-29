@@ -38,7 +38,8 @@ export const main = async(moduleRef) => {
       return await api.disconnect();
     }
 
-    logging.log(['Your new eth account seed', account.privateKey])
+    logging.log(['Your new eth account seed', account.privateKey]);
+    logging.log(['Your new eth account address', account.address]);
     logging.log('Set it to MATCHER_ETH_OWNER_SEED env or override config "blockchain.unique.matcherOwnerSeed" section');
     logging.log('Re-run this playground after doing this to progress contract creation');
 

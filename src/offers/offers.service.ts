@@ -121,7 +121,7 @@ export class OffersService {
       tokenId: +offer.tokenId,
       price: offer.price.toString(),
       quoteId: +offer.quoteId,
-      seller: offer.seller && encodeAddress(Buffer.from(offer.seller, 'base64')),
+      seller: offer.seller,
       metadata: offer.metadata,
       creationDate: offer.creationDate
     }

@@ -100,12 +100,10 @@ export class EscrowService {
   async oldRegisterOffer(data: {collectionId: number, tokenId: number, seller: string, price: bigint}) {
     await this.oldCancelOffers(data.collectionId, data.tokenId);
 
-    // Convert address into public key
-    const publicKey = Buffer.from(decodeAddress(data.seller).toString(), 'binary').toString('base64');
     const repository = this.db.getRepository(Offer);
     await repository.insert({
       id: uuid(), creationDate: new Date(), collectionId: data.collectionId.toString(), tokenId: data.tokenId.toString(),
-      price: data.price, sellerPublicKeyBytes: decodeAddress(data.seller), metadata: {}, seller: publicKey, offerStatus: oldOfferStatus.ACTIVE, quoteId: "2"
+      price: data.price, sellerPublicKeyBytes: decodeAddress(data.seller), metadata: {}, seller: data.seller, offerStatus: oldOfferStatus.ACTIVE, quoteId: "2"
     });
   }
 
