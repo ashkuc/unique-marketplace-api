@@ -1,4 +1,5 @@
 import { IKeyringPair } from '@polkadot/types/types';
+import { Keyring } from '@polkadot/api';
 
 import { Escrow } from './base';
 import * as logging from '../utils/logging';
@@ -15,11 +16,13 @@ const kusamaBlockMethods = {
 
 export class KusamaEscrow extends Escrow {
   SECTION_BALANCES = 'balances'
+  adminAddress;
 
   async init() {
     this.initialized = true;
     this.api = await kusama.connectApi(this.config('kusama.wsEndpoint'), true);
     this.admin = util.privateKey(this.config('escrowSeed'));
+    this.adminAddress = (new Keyring({ type: 'sr25519', ss58Format: this.config('kusama.ss58Format') })).addFromUri(this.config('escrowSeed')).address;
   }
 
   async getBalance(address: string) {
@@ -45,7 +48,7 @@ export class KusamaEscrow extends Escrow {
 
   async scanBlock(blockNum, force=false) {
     const network = this.config('kusama.network');
-    if(!force && (await this.service.isBlockScanned(blockNum, network))) return; // Block already scanned
+    if(!force && (await this.service.isBlockScanned(blockNum, network))) return;  // Block already scanned
     const blockHash = await this.api.rpc.chain.getBlockHash(blockNum);
 
     const signedBlock = await this.api.rpc.chain.getBlock(blockHash);
@@ -63,15 +66,16 @@ export class KusamaEscrow extends Escrow {
       }
       let method = ex.method.method;
       if([kusamaBlockMethods.METHOD_TRANSFER_KEEP_ALIVE].indexOf(method) > -1) method = kusamaBlockMethods.METHOD_TRANSFER;
-      if(!(method === kusamaBlockMethods.METHOD_TRANSFER && ex.method.args[0].toString() !== this.admin.address.toString())) continue;
-      const amount = ex.method.args[1];
+      let toAddress = ex.method.args[0].toString();
+      if(method !== kusamaBlockMethods.METHOD_TRANSFER || toAddress !== this.adminAddress) continue;
+      const amount = ex.method.args[1].toString();
       const address = ex.signer.toString();
       let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
       if (!isSuccess) {
         logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} failed`);
         continue;
       }
-      await this.service.registerKusamaDeposit(amount, address, blockNum);
+      await this.service.registerKusamaDeposit(amount, address, blockNum, this.config('kusama.network'));
       logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} saved to db`);
     }
     if(timestamp !== null) await this.service.addBlock(blockNum, timestamp, network);
@@ -79,7 +83,7 @@ export class KusamaEscrow extends Escrow {
 
   async processWithdraw() {
     while(true) {
-      let withdraw = await this.service.getPendingKusamaWithdraw();
+      let withdraw = await this.service.getPendingKusamaWithdraw(this.config('kusama.network'));
       if(!withdraw) break;
       try {
         logging.log(`Kusama withdraw for money transfer #${withdraw.id} started`);
@@ -110,10 +114,10 @@ export class KusamaEscrow extends Escrow {
 
   async getStartBlock() {
     let startFromBlock = this.config('kusama.startFromBlock');
-    if(startFromBlock === 'latest') return await this.getLatestBlockNumber() - 10;
+    if(startFromBlock === 'latest') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
     let latestBlock = await this.service.getLastScannedBlock(this.config('kusama.network'));
     if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
-    if(startFromBlock === 'current') return await this.getLatestBlockNumber() - 10;
+    if(startFromBlock === 'current') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
     return parseInt(startFromBlock);
   }
 
@@ -123,6 +127,7 @@ export class KusamaEscrow extends Escrow {
     this.store.latestBlock = await this.getLatestBlockNumber();
     logging.log(`Kusama escrow starting from block #${this.store.currentBlock} (mode: ${this.config('kusama.startFromBlock')}, maxBlock: ${this.store.latestBlock})`)
     logging.log(`Kusama admin address: ${this.admin.address}`);
+    logging.log(`Kusama admin address (kusama format): ${this.adminAddress}`);
     await this.subscribe();
     await this.mainLoop();
   }

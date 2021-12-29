@@ -1,4 +1,4 @@
-import {Column, Entity, Index, MigrationInterface, QueryRunner, Table} from 'typeorm';
+import { TableColumn, MigrationInterface, QueryRunner, Table } from 'typeorm';
 
 
 export class MoveToEvm_20211220000000 implements MigrationInterface {
@@ -282,10 +282,14 @@ export class MoveToEvm_20211220000000 implements MigrationInterface {
           isNullable: true
         }
       ]
-    }))
+    }));
+
+    await queryRunner.addColumn("Trade", new TableColumn({name: "price", type: "bigint"}));
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.dropColumn("Trade", "price");
+
     await queryRunner.dropIndex("search_index", "IX_search_index_collection_id_token_id_locale");
     await queryRunner.dropTable("search_index")
 

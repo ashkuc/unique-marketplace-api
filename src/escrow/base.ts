@@ -28,13 +28,18 @@ export class Escrow {
   }
 
   config(path, defaultVal=null) {
-    if(this.configMode === Escrow.MODE_TESTING) path = `blockchain.testing.${path}`;
-    else path = `blockchain.${path}`;
-    let val = this.configObj;
-    for(let key of path.split('.')) {
-      val = val[key];
+    const getOption = (path) => {
+      let val = this.configObj;
+      for (let key of path.split('.')) {
+        val = val[key];
+      }
+      return val;
     }
-    return typeof val !== 'undefined' ? val : defaultVal;
+    let defaultOption = getOption(`blockchain.${path}`);
+    let val = typeof defaultOption !== 'undefined' ? defaultOption : defaultVal;
+    if(this.configMode === Escrow.MODE_PROD) return val;
+    let testingVal = getOption(`blockchain.testing.${path}`);
+    return typeof testingVal !== 'undefined' ? testingVal : val;
   }
 
   async init() {
@@ -66,6 +71,10 @@ export class Escrow {
 
   async processBlock(blockNum, force=false) {
     throw Error('NotImplemented');
+  }
+
+  greaterThenZero(val) {
+    return val > 0 ? val : 0;
   }
 
   async mainLoop() {

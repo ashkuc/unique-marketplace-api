@@ -83,7 +83,7 @@ export class TradesService {
       collectionId: +trade.offer.collectionId,
       creationDate: trade.offer.creationDate,
       metadata: trade.offer.metadata,
-      price: trade.offer.price?.toString(),
+      price: trade.price?.toString(),
       quoteId: +trade.offer.quoteId,
       tokenId: +trade.offer.tokenId,
       tradeDate: trade.tradeDate

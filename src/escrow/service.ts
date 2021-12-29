@@ -58,26 +58,35 @@ export class EscrowService {
     await repository.upsert({block_number: `${blockNum}`, network: this.getNetwork(network), created_at}, ["block_number", "network"]);
   }
 
-  async registerKusamaDeposit(amount, address, blockNumber) {
+  async registerKusamaDeposit(amount, address, blockNumber, network) {
     const repository = this.db.getRepository(MoneyTransfer);
     await repository.insert({
-      id: uuid(), amount: amount, block_number: blockNumber, network: this.config.blockchain.kusama.network, type: MONEY_TRANSFER_TYPES.DEPOSIT,
+      id: uuid(), amount, block_number: blockNumber, network, type: MONEY_TRANSFER_TYPES.DEPOSIT,
       status: MONEY_TRANSFER_STATUS.PENDING, created_at: new Date(), updated_at: new Date(), extra: {address},
       currency: "2" // TODO: check this
     });
   }
 
-  async getPendingKusamaDeposit() {
+  async registerKusamaWithdraw(amount, address, blockNumber, network) {
+    const repository = this.db.getRepository(MoneyTransfer);
+    await repository.insert({
+      id: uuid(), amount, block_number: blockNumber, network, type: MONEY_TRANSFER_TYPES.WITHDRAW,
+      status: MONEY_TRANSFER_STATUS.PENDING, created_at: new Date(), updated_at: new Date(), extra: {address},
+      currency: "2" // TODO: check this
+    })
+  }
+
+  async getPendingKusamaDeposit(network) {
     return this.db.getRepository(MoneyTransfer).createQueryBuilder("money_transfer").orderBy("created_at", "ASC").where(
       "(money_transfer.network = :network AND money_transfer.type = :type AND money_transfer.status = :status)",
-      {network: this.config.blockchain.kusama.network, type: MONEY_TRANSFER_TYPES.DEPOSIT, status: MONEY_TRANSFER_STATUS.PENDING}
+      {network, type: MONEY_TRANSFER_TYPES.DEPOSIT, status: MONEY_TRANSFER_STATUS.PENDING}
     ).limit(1).getOne();
   }
 
-  async getPendingKusamaWithdraw() {
+  async getPendingKusamaWithdraw(network) {
     return this.db.getRepository(MoneyTransfer).createQueryBuilder("money_transfer").orderBy("created_at", "ASC").where(
       "(money_transfer.network = :network AND money_transfer.type = :type AND money_transfer.status = :status)",
-      {network: this.config.blockchain.kusama.network, type: MONEY_TRANSFER_TYPES.WITHDRAW, status: MONEY_TRANSFER_STATUS.PENDING}
+      {network, type: MONEY_TRANSFER_TYPES.WITHDRAW, status: MONEY_TRANSFER_STATUS.PENDING}
     ).limit(1).getOne();
   }
 
@@ -107,10 +116,10 @@ export class EscrowService {
     });
   }
 
-  async oldRegisterTrade(buyer, offer: Offer) {
+  async oldRegisterTrade(buyer, offer: Offer, price: bigint) {
     const repository = this.db.getRepository(Trade);
 
-    await repository.insert({id: uuid(), tradeDate: new Date(), buyer, offerId: offer.id});
+    await repository.insert({id: uuid(), tradeDate: new Date(), buyer, offerId: offer.id, price});
     await this.db.getRepository(Offer).update({id: offer.id}, {offerStatus: oldOfferStatus.TRADED});
   }
 

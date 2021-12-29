@@ -17,6 +17,7 @@ export const main = async(moduleRef) => {
     return;
   }
 
+  logging.log(['WS endpoint', config.blockchain.unique.wsEndpoint]);
   const web3conn = lib.connectWeb3(config.blockchain.unique.wsEndpoint);
   const api = await unique.connectApi(config.blockchain.unique.wsEndpoint, false), web3 = web3conn.web3;
 

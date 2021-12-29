@@ -45,6 +45,11 @@ export class UniqueEscrow extends Escrow {
     this.matcher = new this.web3.eth.Contract(abi, this.config('unique.matcherContractAddress'));
   }
 
+  getPriceWithoutCommission(price: bigint) {
+    let commission = BigInt(100 + parseInt(this.config('kusama.marketCommission')));
+    return (price * 100n) / commission;
+  }
+
   async connectApi() {
     this.api = await unique.connectApi(this.config('unique.wsEndpoint'), true);
     this.admin = util.privateKey(this.config('escrowSeed'));
@@ -142,8 +147,10 @@ export class UniqueEscrow extends Escrow {
     const receiver = normalizeAccountId(inputData.inputs[3]);
     const existedOffer = await this.service.oldGetActiveOffer(collectionId, tokenId);
     if(!existedOffer) return;
-    await this.service.oldRegisterTrade(this.address2string(buyer), existedOffer);
-    logging.log(`Got buyKSM (collectionId: ${collectionId}, tokenId: ${tokenId}, buyer: ${this.address2string(buyer)}) in block #${blockNum}`);
+    const origPrice = this.getPriceWithoutCommission(existedOffer.price);
+    await this.service.oldRegisterTrade(this.address2string(buyer), existedOffer, origPrice);
+    await this.service.registerKusamaWithdraw(origPrice, existedOffer.seller, blockNum, this.config('kusama.network'));
+    logging.log(`Got buyKSM (collectionId: ${collectionId}, tokenId: ${tokenId}, buyer: ${this.address2string(buyer)}, price: ${existedOffer.price}, price without commission: ${origPrice}) in block #${blockNum}`);
   }
 
   async processCancelAsk(blockNum, extrinsic, inputData) {
@@ -216,12 +223,15 @@ export class UniqueEscrow extends Escrow {
 
   async processDeposits() {
     while(true) {
-      let deposit = await this.service.getPendingKusamaDeposit();
+      let deposit = await this.service.getPendingKusamaDeposit(this.config('kusama.network'));
       if(!deposit) break;
       await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.IN_PROGRESS);
       try {
         logging.log(`Unique depositKSM for money transfer #${deposit.id} started`);
-        await this.matcher.methods.depositKSM(deposit.amount, lib.subToEth(deposit.extra.address)).send({from: this.matcherOwner.address, ...lib.GAS_ARGS});
+        const amount = BigInt(deposit.amount);
+        const ethAddress = lib.subToEth(deposit.extra.address);
+        logging.log(['amount', amount.toString(), 'ethAddress', ethAddress])
+        await this.matcher.methods.depositKSM(amount, ethAddress).send({from: this.matcherOwner.address, ...lib.GAS_ARGS});
         await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.COMPLETED);
         logging.log(`Unique depositKSM for money transfer #${deposit.id} successful`);
       }
@@ -245,10 +255,10 @@ export class UniqueEscrow extends Escrow {
 
   async getStartBlock() {
     let startFromBlock = this.config('unique.startFromBlock');
-    if(startFromBlock === 'latest') return await this.getLatestBlockNumber() - 10;
+    if(startFromBlock === 'latest') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
     let latestBlock = await this.service.getLastScannedBlock(this.config('unique.network'));
     if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
-    if(startFromBlock === 'current') return await this.getLatestBlockNumber() - 10;
+    if(startFromBlock === 'current') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
     return parseInt(startFromBlock);
   }
 
@@ -257,6 +267,8 @@ export class UniqueEscrow extends Escrow {
     this.store.currentBlock = await this.getStartBlock();
     this.store.latestBlock = await this.getLatestBlockNumber();
     logging.log(`Unique escrow starting from block #${this.store.currentBlock} (mode: ${this.config('unique.startFromBlock')}, maxBlock: ${this.store.latestBlock})`)
+    logging.log(`Unique escrow matcher owner address: ${this.matcherOwner.address}`);
+    logging.log(`Unique escrow contract address: ${this.config('unique.matcherContractAddress')}`);
     await this.subscribe();
     await this.mainLoop();
   }

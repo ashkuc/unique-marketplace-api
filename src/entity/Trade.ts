@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { Offer } from './Offer';
+import { priceTransformer } from '../utils/price-transformer';
 
 @Index("PK_Trade", ["id"], { unique: true })
 @Index("IX_Trade_OfferId", ["offerId"], {})
@@ -14,6 +15,9 @@ export class Trade {
 
   @Column("text", { name: "Buyer" })
   buyer!: string;
+
+  @Column("text", {name: "price", transformer: priceTransformer})
+  price!: bigint;
 
   @Column("uuid", { name: "OfferId" })
   offerId!: string;
