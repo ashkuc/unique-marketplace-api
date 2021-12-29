@@ -109,10 +109,8 @@ export class EscrowService {
 
   async oldRegisterTrade(buyer, offer: Offer) {
     const repository = this.db.getRepository(Trade);
-    // Convert address into public key
-    const publicKey = Buffer.from(decodeAddress(buyer).toString(), 'binary').toString('base64');
 
-    await repository.insert({id: uuid(), tradeDate: new Date(), buyer: publicKey, offerId: offer.id});
+    await repository.insert({id: uuid(), tradeDate: new Date(), buyer, offerId: offer.id});
     await this.db.getRepository(Offer).update({id: offer.id}, {offerStatus: oldOfferStatus.TRADED});
   }
 

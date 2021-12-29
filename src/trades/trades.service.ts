@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Connection, SelectQueryBuilder } from 'typeorm';
-import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 
 import { Trade } from '../entity';
 
@@ -58,10 +57,7 @@ export class TradesService {
       return query;
     }
 
-    const key = Buffer.from(decodeAddress(seller)).toString('base64');
-
-
-    return query.andWhere('offer.Seller = :seller', {seller: key});
+    return query.andWhere('offer.Seller = :seller', {seller: seller});
   }
 
   async get(collectionIds: number[] | undefined, seller: string | undefined, paginationRequest: PaginationRequest, sort: TradeSortingRequest): Promise<PaginationResult<TradeDto>> {
@@ -82,8 +78,8 @@ export class TradesService {
 
   mapToDto(trade: Trade): TradeDto {
     return {
-      buyer: trade.buyer && encodeAddress(Buffer.from(trade.buyer, 'base64')),
-      seller: trade.offer.seller && encodeAddress(Buffer.from(trade.offer.seller, 'base64')),
+      buyer: trade.buyer,
+      seller: trade.offer.seller,
       collectionId: +trade.offer.collectionId,
       creationDate: trade.offer.creationDate,
       metadata: trade.offer.metadata,

@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Connection, SelectQueryBuilder } from 'typeorm';
-import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 
 import { paginate } from '../utils/pagination/paginate';
 import { PaginationRequest } from '../utils/pagination/pagination-request';
@@ -90,10 +89,8 @@ export class OffersService {
       return query;
     }
 
-    const key = Buffer.from(decodeAddress(seller)).toString('base64');
 
-
-    return query.andWhere('offer.Seller = :seller', {seller: key});
+    return query.andWhere('offer.Seller = :seller', {seller});
   }
 
   filterByTraitsCount(query: SelectQueryBuilder<Offer>, traitsCount?: number[]): SelectQueryBuilder<Offer> {
