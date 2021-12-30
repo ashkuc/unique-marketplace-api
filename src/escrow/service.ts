@@ -3,7 +3,7 @@ import { Connection } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 import { decodeAddress } from "@polkadot/util-crypto";
 
-import { BlockchainBlock, NFTTransfer, ContractAsk, SearchIndex, MoneyTransfer } from '../entity/evm';
+import { BlockchainBlock, NFTTransfer, ContractAsk, AccountPairs, MoneyTransfer } from '../entity/evm';
 import { Offer, Trade, TokenTextSearch } from '../entity';
 import { ASK_STATUS, MONEY_TRANSFER_TYPES, MONEY_TRANSFER_STATUS } from './constants';
 
@@ -32,6 +32,16 @@ export class EscrowService {
 
   async getLastScannedBlock(network?: string) {
     return await this.db.getRepository(BlockchainBlock).createQueryBuilder("blockchain_block").orderBy("block_number", "DESC").where("blockchain_block.network = :network", {network: this.getNetwork(network)}).limit(1).getOne();
+  }
+
+  async registerAccountPair(substrate: string, ethereum: string) {
+    const repository = this.db.getRepository(AccountPairs);
+    await repository.upsert({substrate: substrate.toLocaleLowerCase(), ethereum: ethereum.toLocaleLowerCase()}, ['substrate', 'ethereum']);
+  }
+
+  async getSubstrateAddress(ethereum: string) {
+    const repository = this.db.getRepository(AccountPairs);
+    return (await repository.findOne({ethereum: ethereum.toLocaleLowerCase()}))?.substrate;
   }
 
   async registerAsk(blockNum: bigint | number, data: {collectionId: number, tokenId: number, addressFrom: string, addressTo: string, price: number, currency: string}, network?: string) {

@@ -4,6 +4,23 @@ import { TableColumn, MigrationInterface, QueryRunner, Table } from 'typeorm';
 export class MoveToEvm_20211220000000 implements MigrationInterface {
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(new Table({
+      name: "account_pairs",
+      columns: [
+        {
+          name: "substrate",
+          type: "varchar",
+          length: "128",
+          isPrimary: true
+        },
+        {
+          name: "ethereum",
+          type: "varchar",
+          length: "128",
+          isPrimary: true
+        }
+      ]
+    }));
+    await queryRunner.createTable(new Table({
       name: "blockchain_block",
       columns: [
         {
@@ -308,6 +325,7 @@ export class MoveToEvm_20211220000000 implements MigrationInterface {
     await queryRunner.dropTable("nft_transfer");
 
     await queryRunner.dropTable("blockchain_block");
+    await queryRunner.dropTable("account_pairs");
   }
 
 }

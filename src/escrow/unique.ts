@@ -15,7 +15,6 @@ export class UniqueEscrow extends Escrow {
   explorer;
   web3;
   matcherOwner;
-  matcher;
   SECTION_UNIQUE = 'unique';
   SECTION_CONTRACT = 'evm';
   SECTION_ETHEREUM = 'ethereum';
@@ -35,14 +34,21 @@ export class UniqueEscrow extends Escrow {
     this.initialized = true;
     await this.connectApi();
     const InputDataDecoder = require('ethereum-input-data-decoder');
-    const abi = JSON.parse(fs.readFileSync(path.join(this.configObj.rootDir, 'blockchain', 'MarketPlace.abi')).toString());
-    this.inputDecoder = new InputDataDecoder(abi);
+    this.inputDecoder = new InputDataDecoder(this.getAbi());
     this.explorer = new UniqueExplorer(this.api, this.admin);
     this.web3 = lib.connectWeb3(this.config('unique.wsEndpoint')).web3;
     this.matcherOwner = this.web3.eth.accounts.privateKeyToAccount(this.config('unique.matcherOwnerSeed'));
-    this.web3.eth.accounts.wallet.add(this.matcherOwner.privateKey);
+  }
 
-    this.matcher = new this.web3.eth.Contract(abi, this.config('unique.matcherContractAddress'));
+  getAbi() {
+    return JSON.parse(fs.readFileSync(path.join(this.configObj.rootDir, 'blockchain', 'MarketPlace.abi')).toString());
+  }
+
+  getMatcher() {
+    const web3 = lib.connectWeb3(this.config('unique.wsEndpoint')).web3;
+    web3.eth.accounts.wallet.add(this.matcherOwner.privateKey);
+
+    return new web3.eth.Contract(this.getAbi(), this.config('unique.matcherContractAddress'));
   }
 
   getPriceWithoutCommission(price: bigint) {
@@ -117,22 +123,25 @@ export class UniqueEscrow extends Escrow {
     logging.log(`Got nft transfer (collectionId: ${collectionId}, tokenId: ${tokenId}) in block #${blockNum}`);
   }
 
-  async processAddAsk(blockNum, extrinsic, inputData) {
+  async processAddAsk(blockNum, extrinsic, inputData, signer) {
     const addressTo = normalizeAccountId(extrinsic.args.target);
-    const addressFrom = normalizeAccountId(extrinsic.args.source);
-    const price = inputData.inputs[0].toString()
+    const addressFrom = signer.toString(); // signer is substrate address of args.source
+    const addressFromEth = normalizeAccountId(extrinsic.args.source);
+    const price = inputData.inputs[0].toString();
     const currency = inputData.inputs[1];
     const collectionEVMAddress = inputData.inputs[2];
     const collectionId = extractCollectionIdFromAddress(collectionEVMAddress);
     const tokenId = inputData.inputs[3].toNumber();
     if(this.config('unique.collectionIds').indexOf(collectionId) === -1) return; // Collection not managed by market
+    await this.service.registerAccountPair(addressFrom, this.address2string(addressFromEth));
     await this.service.registerAsk(blockNum, {
-      collectionId, tokenId, addressTo: this.address2string(addressTo), addressFrom: this.address2string(addressFrom), price, currency
+      collectionId, tokenId, addressTo: this.address2string(addressTo), addressFrom, price, currency
     }, this.config('unique.network'));
     logging.log(`Got ask (collectionId: ${collectionId}, tokenId: ${tokenId}, price: ${price}) in block #${blockNum}`);
-    // TODO: use correct address (Or maybe we don't need this at all)
-    if(this.address2string(addressTo) === this.config('unique.matcherContractAddress') || true) {
-      await this.service.oldRegisterOffer({collectionId, tokenId, price: inputData.inputs[0], seller: this.address2string(addressFrom)});
+    // TODO: maybe we don't need this at all
+    let isToMatcher = this.address2string(addressTo).toLocaleLowerCase() === this.config('unique.matcherContractAddress').toLocaleLowerCase();
+    if(isToMatcher || true) {
+      await this.service.oldRegisterOffer({collectionId, tokenId, price: inputData.inputs[0], seller: addressFrom});
       await this.service.oldAddSearchIndexes(await this.getSearchIndexes(collectionId, tokenId), {collectionId, tokenId});
     }
   }
@@ -148,24 +157,28 @@ export class UniqueEscrow extends Escrow {
     const existedOffer = await this.service.oldGetActiveOffer(collectionId, tokenId);
     if(!existedOffer) return;
     const origPrice = this.getPriceWithoutCommission(existedOffer.price);
-    await this.service.oldRegisterTrade(this.address2string(buyer), existedOffer, origPrice);
+    const buyerEth = this.address2string(buyer);
+    const buyerAddress = await this.service.getSubstrateAddress(buyerEth);
+    await this.service.oldRegisterTrade(buyerAddress, existedOffer, origPrice);
     await this.service.registerKusamaWithdraw(origPrice, existedOffer.seller, blockNum, this.config('kusama.network'));
-    logging.log(`Got buyKSM (collectionId: ${collectionId}, tokenId: ${tokenId}, buyer: ${this.address2string(buyer)}, price: ${existedOffer.price}, price without commission: ${origPrice}) in block #${blockNum}`);
+    logging.log(`Got buyKSM (collectionId: ${collectionId}, tokenId: ${tokenId}, buyer: ${buyerAddress}, price: ${existedOffer.price}, price without commission: ${origPrice}) in block #${blockNum}`);
   }
 
   async processCancelAsk(blockNum, extrinsic, inputData) {
     const collectionEVMAddress = inputData.inputs[0];
     const collectionId = extractCollectionIdFromAddress(collectionEVMAddress);
     const tokenId = inputData.inputs[1].toNumber();
+    const existedOffer = await this.service.oldGetActiveOffer(collectionId, tokenId);
     await this.service.oldCancelOffers(collectionId, tokenId);
     logging.log(`Got cancelAsk (collectionId: ${collectionId}, tokenId: ${tokenId}) in block #${blockNum}`);
+    if(!existedOffer) logging.log(`No active offer for token ${tokenId} from collection ${collectionId}, nothing to cancel`, logging.level.WARNING);
   }
 
   async processCall(blockNum, rawExtrinsic) {
     const extrinsic = rawExtrinsic.toHuman().method;
     const inputData = this.inputDecoder.decodeData(extrinsic.args.input);
     if(inputData.method === 'addAsk') {
-      return await this.processAddAsk(blockNum, extrinsic, inputData);
+      return await this.processAddAsk(blockNum, extrinsic, inputData, rawExtrinsic.signer);
     }
     if(inputData.method === 'buyKSM') {
       return await this.processBuyKSM(blockNum, extrinsic, inputData);
@@ -230,8 +243,11 @@ export class UniqueEscrow extends Escrow {
         logging.log(`Unique depositKSM for money transfer #${deposit.id} started`);
         const amount = BigInt(deposit.amount);
         const ethAddress = lib.subToEth(deposit.extra.address);
-        logging.log(['amount', amount.toString(), 'ethAddress', ethAddress])
-        await this.matcher.methods.depositKSM(amount, ethAddress).send({from: this.matcherOwner.address, ...lib.GAS_ARGS});
+        await this.service.registerAccountPair(deposit.extra.address, ethAddress);
+        logging.log(['amount', amount.toString(), 'ethAddress', ethAddress]);
+        await this.getMatcher().methods.depositKSM(amount, ethAddress).send({
+          from: this.matcherOwner.address, ...lib.GAS_ARGS
+        });
         await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.COMPLETED);
         logging.log(`Unique depositKSM for money transfer #${deposit.id} successful`);
       }
