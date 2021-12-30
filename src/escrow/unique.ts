@@ -166,7 +166,7 @@ export class UniqueEscrow extends Escrow {
     const origPrice = this.getPriceWithoutCommission(existedOffer.price);
     const buyerEth = this.address2string(buyer);
     const buyerAddress = await this.service.getSubstrateAddress(buyerEth);
-    await this.service.oldRegisterTrade(buyerAddress, existedOffer, origPrice);
+    await this.service.oldRegisterTrade(buyerAddress ? buyerAddress : buyerEth, existedOffer, origPrice);
     await this.service.registerKusamaWithdraw(origPrice, existedOffer.seller, blockNum, this.config('kusama.network'));
     logging.log(`Got buyKSM (collectionId: ${collectionId}, tokenId: ${tokenId}, buyer: ${buyerAddress}, price: ${existedOffer.price}, price without commission: ${origPrice}) in block #${blockNum}`);
   }
