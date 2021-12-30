@@ -36,7 +36,7 @@ export class EscrowService {
 
   async registerAccountPair(substrate: string, ethereum: string) {
     const repository = this.db.getRepository(AccountPairs);
-    await repository.upsert({substrate: substrate.toLocaleLowerCase(), ethereum: ethereum.toLocaleLowerCase()}, ['substrate', 'ethereum']);
+    await repository.upsert({substrate: substrate, ethereum: ethereum.toLocaleLowerCase()}, ['substrate', 'ethereum']);
   }
 
   async getSubstrateAddress(ethereum: string) {

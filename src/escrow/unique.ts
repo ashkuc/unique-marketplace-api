@@ -48,7 +48,11 @@ export class UniqueEscrow extends Escrow {
     const web3 = lib.connectWeb3(this.config('unique.wsEndpoint')).web3;
     web3.eth.accounts.wallet.add(this.matcherOwner.privateKey);
 
-    return new web3.eth.Contract(this.getAbi(), this.config('unique.matcherContractAddress'));
+    return {
+      web3,
+      matcher: new web3.eth.Contract(this.getAbi(), this.config('unique.matcherContractAddress')),
+      helpers: lib.contractHelpers(web3, this.matcherOwner.address)
+    };
   }
 
   getPriceWithoutCommission(price: bigint) {
@@ -143,6 +147,9 @@ export class UniqueEscrow extends Escrow {
     if(isToMatcher || true) {
       await this.service.oldRegisterOffer({collectionId, tokenId, price: inputData.inputs[0], seller: addressFrom});
       await this.service.oldAddSearchIndexes(await this.getSearchIndexes(collectionId, tokenId), {collectionId, tokenId});
+
+      const { matcher, helpers } = this.getMatcher();
+      await helpers.methods.toggleAllowed(matcher.options.address, lib.subToEth(addressFrom), true).send({from: this.matcherOwner});
     }
   }
 
@@ -245,7 +252,10 @@ export class UniqueEscrow extends Escrow {
         const ethAddress = lib.subToEth(deposit.extra.address);
         await this.service.registerAccountPair(deposit.extra.address, ethAddress);
         logging.log(['amount', amount.toString(), 'ethAddress', ethAddress]);
-        await this.getMatcher().methods.depositKSM(amount, ethAddress).send({
+        const { matcher, helpers } = this.getMatcher();
+        await helpers.methods.toggleAllowed(matcher.options.address, ethAddress, true).send({from: this.matcherOwner});
+
+        await matcher.methods.depositKSM(amount, ethAddress).send({
           from: this.matcherOwner.address, ...lib.GAS_ARGS
         });
         await this.service.updateMoneyTransferStatus(deposit.id, MONEY_TRANSFER_STATUS.COMPLETED);

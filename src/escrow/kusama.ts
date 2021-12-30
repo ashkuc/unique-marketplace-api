@@ -1,5 +1,6 @@
 import { IKeyringPair } from '@polkadot/types/types';
 import { Keyring } from '@polkadot/api';
+import { decodeAddress, encodeAddress } from '@polkadot/util-crypto';
 
 import { Escrow } from './base';
 import * as logging from '../utils/logging';
@@ -7,6 +8,7 @@ import { transactionStatus, signTransaction } from '../utils/blockchain/polka';
 import { MONEY_TRANSFER_STATUS } from './constants';
 import * as kusama from '../utils/blockchain/kusama';
 import * as util from '../utils/blockchain/util';
+
 
 const kusamaBlockMethods = {
   METHOD_TRANSFER_KEEP_ALIVE: 'transferKeepAlive',
@@ -69,7 +71,7 @@ export class KusamaEscrow extends Escrow {
       let toAddress = ex.method.args[0].toString();
       if(method !== kusamaBlockMethods.METHOD_TRANSFER || toAddress !== this.adminAddress) continue;
       const amount = ex.method.args[1].toString();
-      const address = ex.signer.toString();
+      const address = encodeAddress(decodeAddress(ex.signer.toString()));
       let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
       if (!isSuccess) {
         logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} failed`);
