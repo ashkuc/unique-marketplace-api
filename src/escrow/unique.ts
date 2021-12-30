@@ -149,7 +149,7 @@ export class UniqueEscrow extends Escrow {
       await this.service.oldAddSearchIndexes(await this.getSearchIndexes(collectionId, tokenId), {collectionId, tokenId});
 
       const { matcher, helpers } = this.getMatcher();
-      await helpers.methods.toggleAllowed(matcher.options.address, lib.subToEth(addressFrom), true).send({from: this.matcherOwner});
+      await helpers.methods.toggleAllowed(matcher.options.address, lib.subToEth(addressFrom), true).send({from: this.matcherOwner.address});
     }
   }
 
@@ -253,7 +253,7 @@ export class UniqueEscrow extends Escrow {
         await this.service.registerAccountPair(deposit.extra.address, ethAddress);
         logging.log(['amount', amount.toString(), 'ethAddress', ethAddress]);
         const { matcher, helpers } = this.getMatcher();
-        await helpers.methods.toggleAllowed(matcher.options.address, ethAddress, true).send({from: this.matcherOwner});
+        await helpers.methods.toggleAllowed(matcher.options.address, ethAddress, true).send({from: this.matcherOwner.address});
 
         await matcher.methods.depositKSM(amount, ethAddress).send({
           from: this.matcherOwner.address, ...lib.GAS_ARGS
