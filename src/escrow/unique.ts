@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { evmToAddress } from '@polkadot/util-crypto';
 
 import { Escrow } from './base';
 import * as logging from '../utils/logging';
@@ -53,6 +54,18 @@ export class UniqueEscrow extends Escrow {
       matcher: new web3.eth.Contract(this.getAbi(), this.config('unique.matcherContractAddress')),
       helpers: lib.contractHelpers(web3, this.matcherOwner.address)
     };
+  }
+
+  async addToAllowList(substrateAddress, data?: {matcher: any, helpers: any}) {
+    if(!data) data = this.getMatcher();
+    let ethAddress = lib.subToEth(substrateAddress);
+    for(let address of [substrateAddress, ethAddress, evmToAddress(ethAddress, 42, 'blake2')]) {
+      await data.helpers.methods.toggleAllowed(data.matcher.options.address, address, true).send({from: this.matcherOwner.address});
+    }
+  }
+
+  isCollectionManaged(collectionId: number) {
+    return (this.config('unique.collectionIds').indexOf(collectionId) !== -1);
   }
 
   getPriceWithoutCommission(price: bigint) {
@@ -123,7 +136,7 @@ export class UniqueEscrow extends Escrow {
     if(this.config('unique.collectionIds').indexOf(collectionId) === -1) return; // Collection not managed by market
     await this.service.registerTransfer(blockNum, {
       collectionId, tokenId, addressTo: this.address2string(addressTo), addressFrom: this.address2string(addressFrom)
-    }, this.config('unique.network'));
+    }, this.getNetwork());
     logging.log(`Got nft transfer (collectionId: ${collectionId}, tokenId: ${tokenId}) in block #${blockNum}`);
   }
 
@@ -136,31 +149,30 @@ export class UniqueEscrow extends Escrow {
     const collectionEVMAddress = inputData.inputs[2];
     const collectionId = extractCollectionIdFromAddress(collectionEVMAddress);
     const tokenId = inputData.inputs[3].toNumber();
-    if(this.config('unique.collectionIds').indexOf(collectionId) === -1) return; // Collection not managed by market
+    if(!this.isCollectionManaged(collectionId)) return; // Collection not managed by market
     await this.service.registerAccountPair(addressFrom, this.address2string(addressFromEth));
     await this.service.registerAsk(blockNum, {
       collectionId, tokenId, addressTo: this.address2string(addressTo), addressFrom, price, currency
-    }, this.config('unique.network'));
+    }, this.getNetwork());
     logging.log(`Got ask (collectionId: ${collectionId}, tokenId: ${tokenId}, price: ${price}) in block #${blockNum}`);
     // TODO: maybe we don't need this at all
     let isToMatcher = this.address2string(addressTo).toLocaleLowerCase() === this.config('unique.matcherContractAddress').toLocaleLowerCase();
-    if(isToMatcher || true) {
+    if(isToMatcher) {
       await this.service.oldRegisterOffer({collectionId, tokenId, price: inputData.inputs[0], seller: addressFrom});
       await this.service.oldAddSearchIndexes(await this.getSearchIndexes(collectionId, tokenId), {collectionId, tokenId});
 
-      const { matcher, helpers } = this.getMatcher();
-      await helpers.methods.toggleAllowed(matcher.options.address, lib.subToEth(addressFrom), true).send({from: this.matcherOwner.address});
+      await this.addToAllowList(addressFrom);
     }
   }
 
   async processBuyKSM(blockNum, extrinsic, inputData) {
-    const addressTo = normalizeAccountId(extrinsic.args.target);
-    const addressFrom = normalizeAccountId(extrinsic.args.source);
+    // const addressTo = normalizeAccountId(extrinsic.args.target);
+    // const addressFrom = normalizeAccountId(extrinsic.args.source);
     const collectionEVMAddress = inputData.inputs[0];
     const collectionId = extractCollectionIdFromAddress(collectionEVMAddress);
     const tokenId = inputData.inputs[1].toNumber();
     const buyer = normalizeAccountId(inputData.inputs[2]);
-    const receiver = normalizeAccountId(inputData.inputs[3]);
+    // const receiver = normalizeAccountId(inputData.inputs[3]);
     const existedOffer = await this.service.oldGetActiveOffer(collectionId, tokenId);
     if(!existedOffer) return;
     const origPrice = this.getPriceWithoutCommission(existedOffer.price);
@@ -174,6 +186,7 @@ export class UniqueEscrow extends Escrow {
   async processCancelAsk(blockNum, extrinsic, inputData) {
     const collectionEVMAddress = inputData.inputs[0];
     const collectionId = extractCollectionIdFromAddress(collectionEVMAddress);
+    if(!this.isCollectionManaged(collectionId)) return; // Collection not managed by market
     const tokenId = inputData.inputs[1].toNumber();
     const existedOffer = await this.service.oldGetActiveOffer(collectionId, tokenId);
     await this.service.oldCancelOffers(collectionId, tokenId);
@@ -206,39 +219,23 @@ export class UniqueEscrow extends Escrow {
     }
   }
 
-  async scanBlock(blockNum: bigint | number, force: boolean = false) {
-    const network = this.config('unique.network');
-    if(!force && (await this.service.isBlockScanned(blockNum, network))) return; // Block already scanned
+  getNetwork(): string {
+    return this.config('unique.network');
+  }
 
-    const blockHash = await this.api.rpc.chain.getBlockHash(blockNum);
-
-    const signedBlock = await this.api.rpc.chain.getBlock(blockHash);
-    const allRecords = await this.api.query.system.events.at(blockHash);
-
-    let timestamp = null;
-
-    for (let [extrinsicIndex, ex] of signedBlock.block.extrinsics.entries()) {
-      let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
-      if(!isSuccess) continue;
-      if(['parachainSystem'].indexOf(ex.method.section) > -1) continue;
-      if(this.configObj.dev.debugScanBlock && ex.method.section != 'timestamp') logging.log([blockNum, ex.method.section, ex.method.method]);
-      if(ex.method.section === this.SECTION_UNIQUE && ex.method.method === 'transfer') {
-        await this.processTransfer(blockNum, ex);
-        continue;
-      }
-      if(ex.method.section === this.SECTION_CONTRACT && ex.method.method === 'call') {
-        await this.processCall(blockNum, ex);
-        continue;
-      }
-      if(ex.method.section === this.SECTION_ETHEREUM && ex.method.method === 'transact') {
-        await this.processEthereum(blockNum, ex);
-        continue;
-      }
-      if(ex.method.section === this.SECTION_TIMESTAMP && ex.method.method === 'set') {
-        timestamp = ex.method.toJSON().args.now;
-      }
+  async extractBlockData(blockNum, isSuccess, rawExtrinsic) {
+    if(!isSuccess) return;
+    if(['parachainSystem'].indexOf(rawExtrinsic.method.section) > -1) return;
+    if(this.configObj.dev.debugScanBlock && rawExtrinsic.method.section != 'timestamp') logging.log([blockNum, rawExtrinsic.method.section, rawExtrinsic.method.method]);
+    if(rawExtrinsic.method.section === this.SECTION_UNIQUE && rawExtrinsic.method.method === 'transfer') {
+      return await this.processTransfer(blockNum, rawExtrinsic);
     }
-    if(timestamp !== null) await this.service.addBlock(blockNum, timestamp, network);
+    if(rawExtrinsic.method.section === this.SECTION_CONTRACT && rawExtrinsic.method.method === 'call') {
+      return await this.processCall(blockNum, rawExtrinsic);
+    }
+    if(rawExtrinsic.method.section === this.SECTION_ETHEREUM && rawExtrinsic.method.method === 'transact') {
+      return await this.processEthereum(blockNum, rawExtrinsic);
+    }
   }
 
   async processDeposits() {
@@ -253,7 +250,7 @@ export class UniqueEscrow extends Escrow {
         await this.service.registerAccountPair(deposit.extra.address, ethAddress);
         logging.log(['amount', amount.toString(), 'ethAddress', ethAddress]);
         const { matcher, helpers } = this.getMatcher();
-        await helpers.methods.toggleAllowed(matcher.options.address, ethAddress, true).send({from: this.matcherOwner.address});
+        await this.addToAllowList(deposit.extra.address, {matcher, helpers});
 
         await matcher.methods.depositKSM(amount, ethAddress).send({
           from: this.matcherOwner.address, ...lib.GAS_ARGS
@@ -279,13 +276,8 @@ export class UniqueEscrow extends Escrow {
     await this.processDeposits();
   }
 
-  async getStartBlock() {
-    let startFromBlock = this.config('unique.startFromBlock');
-    if(startFromBlock === 'latest') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
-    let latestBlock = await this.service.getLastScannedBlock(this.config('unique.network'));
-    if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
-    if(startFromBlock === 'current') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
-    return parseInt(startFromBlock);
+  getStartFromBlock(): number | string {
+    return this.config('unique.startFromBlock');
   }
 
   async work() {

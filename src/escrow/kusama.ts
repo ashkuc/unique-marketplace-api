@@ -48,44 +48,31 @@ export class KusamaEscrow extends Escrow {
     logging.log(['Transfer successful. Sender balance:', (await this.getBalance(sender.address)).toString(), ' Recipient balance:', (await this.getBalance(recipient)).toString()])
   }
 
-  async scanBlock(blockNum, force=false) {
-    const network = this.config('kusama.network');
-    if(!force && (await this.service.isBlockScanned(blockNum, network))) return;  // Block already scanned
-    const blockHash = await this.api.rpc.chain.getBlockHash(blockNum);
+  getNetwork(): string {
+    return this.config('kusama.network');
+  }
 
-    const signedBlock = await this.api.rpc.chain.getBlock(blockHash);
-    const allRecords = await this.api.query.system.events.at(blockHash);
-
-    let timestamp = null;
-
-    for (let [extrinsicIndex, ex] of signedBlock.block.extrinsics.entries()) {
-      if(ex.method.section === this.SECTION_TIMESTAMP && ex.method.method === 'set') {
-        timestamp = ex.method.toJSON().args.now;
-        continue;
-      }
-      if(ex.method.section !== this.SECTION_BALANCES) {
-        continue;
-      }
-      let method = ex.method.method;
-      if([kusamaBlockMethods.METHOD_TRANSFER_KEEP_ALIVE].indexOf(method) > -1) method = kusamaBlockMethods.METHOD_TRANSFER;
-      let toAddress = ex.method.args[0].toString();
-      if(method !== kusamaBlockMethods.METHOD_TRANSFER || toAddress !== this.adminAddress) continue;
-      const amount = ex.method.args[1].toString();
-      const address = encodeAddress(decodeAddress(ex.signer.toString()));
-      let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
-      if (!isSuccess) {
-        logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} failed`);
-        continue;
-      }
-      await this.service.registerKusamaDeposit(amount, address, blockNum, this.config('kusama.network'));
-      logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} saved to db`);
+  async extractBlockData(blockNum, isSuccess, rawExtrinsic) {
+    if(rawExtrinsic.method.section !== this.SECTION_BALANCES) {
+      return;
     }
-    if(timestamp !== null) await this.service.addBlock(blockNum, timestamp, network);
+    let method = rawExtrinsic.method.method;
+    if([kusamaBlockMethods.METHOD_TRANSFER_KEEP_ALIVE].indexOf(method) > -1) method = kusamaBlockMethods.METHOD_TRANSFER;
+    let toAddress = rawExtrinsic.method.args[0].toString();
+    if(method !== kusamaBlockMethods.METHOD_TRANSFER || toAddress !== this.adminAddress) return;
+    const amount = rawExtrinsic.method.args[1].toString();
+    const address = encodeAddress(decodeAddress(rawExtrinsic.signer.toString()));
+    if (!isSuccess) {
+      logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} failed`);
+      return;
+    }
+    await this.service.registerKusamaDeposit(amount, address, blockNum, this.getNetwork());
+    logging.log(`Kusama deposit (from ${address}, amount ${amount}) in block #${blockNum} saved to db`);
   }
 
   async processWithdraw() {
     while(true) {
-      let withdraw = await this.service.getPendingKusamaWithdraw(this.config('kusama.network'));
+      let withdraw = await this.service.getPendingKusamaWithdraw(this.getNetwork());
       if(!withdraw) break;
       try {
         logging.log(`Kusama withdraw for money transfer #${withdraw.id} started`);
@@ -112,15 +99,6 @@ export class KusamaEscrow extends Escrow {
       logging.log(e, logging.level.ERROR);
     }
     await this.processWithdraw();
-  }
-
-  async getStartBlock() {
-    let startFromBlock = this.config('kusama.startFromBlock');
-    if(startFromBlock === 'latest') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
-    let latestBlock = await this.service.getLastScannedBlock(this.config('kusama.network'));
-    if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
-    if(startFromBlock === 'current') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
-    return parseInt(startFromBlock);
   }
 
   async work() {

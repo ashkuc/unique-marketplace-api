@@ -69,12 +69,57 @@ export class Escrow {
     });
   }
 
+  getNetwork(): string {
+    throw Error('NotImplemented');
+  }
+
+  async scanBlock(blockNum: bigint | number, force: boolean = false) {
+    const network = this.getNetwork();
+    if(!force && (await this.service.isBlockScanned(blockNum, network))) return; // Block already scanned
+
+    const blockHash = await this.api.rpc.chain.getBlockHash(blockNum);
+
+    const signedBlock = await this.api.rpc.chain.getBlock(blockHash);
+    const allRecords = await this.api.query.system.events.at(blockHash);
+
+    let timestamp = null;
+
+    for (let [extrinsicIndex, ex] of signedBlock.block.extrinsics.entries()) {
+      let isSuccess = this.isSuccessfulExtrinsic(allRecords, extrinsicIndex);
+      if(ex.method.section === this.SECTION_TIMESTAMP && ex.method.method === 'set') {
+        timestamp = ex.method.toJSON().args.now;
+        continue;
+      }
+      await this.extractBlockData(blockNum, isSuccess, ex);
+
+    }
+    if(timestamp !== null) await this.service.addBlock(blockNum, timestamp, network);
+  }
+
+  async extractBlockData(blockNum, isSuccess, rawExtrinsic) {
+    throw Error('NotImplemented');
+  }
+
+
   async processBlock(blockNum, force=false) {
     throw Error('NotImplemented');
   }
 
   greaterThenZero(val) {
     return val > 0 ? val : 0;
+  }
+
+  getStartFromBlock(): number | string {
+    return 1;
+  }
+
+  async getStartBlock() {
+    let startFromBlock = this.getStartFromBlock();
+    if(startFromBlock === 'latest') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
+    let latestBlock = await this.service.getLastScannedBlock(this.getNetwork());
+    if(latestBlock?.block_number) return parseInt(latestBlock.block_number);
+    if(startFromBlock === 'current') return this.greaterThenZero(await this.getLatestBlockNumber() - 10);
+    return parseInt(`${startFromBlock}`);
   }
 
   async mainLoop() {
