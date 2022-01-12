@@ -2,11 +2,11 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createConnection } from 'typeorm';
 
-import { getConfig } from '../src/config';
-import { AppModule } from '../src/app.module';
-import { activeMigrations } from '../src/migrations';
-import { ProjectNamingStrategy } from '../src/database/naming_strategy'
-import { ignoreQueryCase, useGlobalPipes } from '../src/utils/application';
+import { getConfig } from '../../src/config';
+import { AppModule } from '../../src/app.module';
+import { activeMigrations } from '../../src/migrations';
+import { ProjectNamingStrategy } from '../../src/database/naming_strategy'
+import { ignoreQueryCase, useGlobalPipes } from '../../src/utils/application';
 
 const testConfigFactory = (extra?) => () => {
   let config = getConfig();
@@ -37,6 +37,6 @@ export const getMigrationsConnection = async (config, logging: boolean = false) 
 export const runMigrations = async (config) => {
   const connection = await getMigrationsConnection(config);
   await connection.dropDatabase();
-  await connection.runMigrations();
+  await connection.runMigrations({transaction: 'all'});
   await connection.close();
 }

@@ -1,8 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 
-import { initApp, runMigrations } from './base';
-import { prepareTradesData } from './prepare_data';
+import { initApp, runMigrations } from './data/base';
+import { prepareTradesData } from './data/prepare_data';
 
 describe('Trades service', () => {
   let app: INestApplication;
@@ -11,10 +11,12 @@ describe('Trades service', () => {
     app = await initApp();
     await runMigrations(app.get('CONFIG'));
     await app.init();
+
   });
 
   afterAll(async () => {
     await app.close();
+
   })
 
   it('/trades (GET, sorting)', async () => {

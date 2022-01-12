@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { MigrationExecutor } from "typeorm";
 
-import { initApp, getMigrationsConnection } from './base';
+import { initApp, getMigrationsConnection } from './data/base';
 
 describe('Migrations', () => {
   let app: INestApplication;
@@ -19,9 +19,9 @@ describe('Migrations', () => {
     const config = app.get('CONFIG');
     const conn = await getMigrationsConnection(config, config.dev.debugMigrations);
     await conn.dropDatabase();
-    await conn.runMigrations();
+    await conn.runMigrations({transaction:'all'});
     const migrationExecutor = new MigrationExecutor(conn);
-    // eslint-disable-next-line
+
     for (let _ of await migrationExecutor.getAllMigrations()) {
       await migrationExecutor.undoLastMigration();
     }

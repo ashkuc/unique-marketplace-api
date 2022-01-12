@@ -1,4 +1,4 @@
-import { Offer, TokenTextSearch, Trade } from '../src/entity';
+import { Offer, TokenTextSearch, Trade } from '../../src/entity';
 
 
 const genOffer = (id, {
