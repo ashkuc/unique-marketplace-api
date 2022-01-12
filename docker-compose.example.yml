@@ -1,9 +1,9 @@
 version: "3.5"
 
 services:
-  market-postgres:
+  marketplace-postgres:
     image: postgres:13.4-alpine
-    container_name: market-postgres
+    container_name: marketplace-postgres
     environment:
       POSTGRES_DB: 'marketplace_db'
       POSTGRES_USER: 'marketplace'
