@@ -11,10 +11,11 @@ import { TradesController } from './trades/trades.controller';
 import { TradesService } from './trades/trades.service';
 import { EscrowModule } from './escrow/module';
 import { PlaygroundCommand } from './utils/playground';
+import { BroadcastModule } from "./broadcast/broadcast.module";
 
 
 @Module({
-  imports: [DatabaseModule, ConfigModule, CommandModule, EscrowModule],
+  imports: [DatabaseModule, ConfigModule, CommandModule, EscrowModule, BroadcastModule],
   controllers: [OffersController, TradesController, OnHoldController],
   providers: [OffersService, TradesService, OnHoldService, PlaygroundCommand]
 })
