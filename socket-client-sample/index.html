@@ -1,0 +1,67 @@
+<html>
+    <head>
+        <title>Socket.IO sample</title>
+        <script src="https://cdn.socket.io/4.4.1/socket.io.js" crossorigin="anonymous"></script>
+    </head>
+
+    <body>
+        <ul id="list"></ul>
+
+        <div style="position: absolute; bottom: 20px; width: 600px">
+            <form id="form" action="javascript:sendMessage();">
+                <label for="message">message</label>
+                <input id="message" placeholder="message" style="display: block; width: 100%; margin: 10px" value="test">
+                <label for="payload">payload</label>
+                <input id="payload" placeholder="payload" style="display: block; width: 100%; margin: 10px" value="test">
+            </form>
+            <button type="submit" form="form" style="margin: 10px">SEND</button>
+        </div>
+
+        <script type="application/javascript">
+            localStorage.debug = '*'
+
+            const addItem = (payload) => {
+                const content = typeof payload === 'string' ? payload : JSON.stringify(payload);
+                const time = new Date().toLocaleTimeString();
+
+                const listTag = document.getElementById('list');
+                const allItems = listTag.getElementsByTagName('li');
+
+                if (allItems.length > 20) {
+                    listTag.removeChild(allItems[0]);
+                }
+
+                let listItem = document.createElement('li');
+                listItem.append(`${time}: ${content}`);
+
+                listTag.append(listItem);
+            }
+
+            const socket = io('http://localhost:5000', { withCredentials: true });
+
+            socket.on('connect', function() {
+                addItem('Connected');
+            });
+
+            socket.on('disconnect', function() {
+                addItem('Disconnected');
+            });
+
+            socket.onAny(function(...args) {
+                addItem(args);
+            });
+
+
+            window.sendMessage = function (event) {
+                const message = document.getElementById('message').value;
+                const payload = document.getElementById('payload').value;
+
+                console.log(JSON.stringify({ message, payload }));
+
+                if (message && payload) {
+                    socket.emit(message, payload);
+                }
+            };
+        </script>
+    </body>
+</html>
